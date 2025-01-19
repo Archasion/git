@@ -1,11 +1,13 @@
 use clap::Subcommand;
 
 mod hash_object;
+mod init;
 
 impl Command {
-    pub fn parse(self) -> impl CommandArgs {
+    pub fn run(self) -> anyhow::Result<()> {
         match self {
-            Command::HashObject(args) => args,
+            Command::HashObject(args) => args.run(),
+            Command::Init(args) => args.run(),
         }
     }
 }
@@ -13,6 +15,7 @@ impl Command {
 #[derive(Subcommand, Debug)]
 pub(crate) enum Command {
     HashObject(hash_object::HashObjectArgs),
+    Init(init::InitArgs),
 }
 
 pub(crate) trait CommandArgs {
