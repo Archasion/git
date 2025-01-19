@@ -4,3 +4,10 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+anyhow = { version = "1.0.95", default-features = false } # error handling
+clap = { version = "4.5.26", features = ["derive"] } # parsing cli arguments
+flate2 = { version = "1.0.35", default-features = false, features = ["rust_backend"] } # compression
+sha1 = { version = "0.10.6", default-features = false } # hashing
+
+[dev-dependencies]
+tempfile = { version = "3.15.0", default-features = false }
