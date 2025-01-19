@@ -8,6 +8,11 @@ This is a simple attempt at re-creating some of the functionality of the `git` c
   - `-w` flag to write the object to the object database.
   - `-t` flag to specify the type of the object (supported: `blob`).
   - `<file>` argument to specify the file to hash.
+- `init` - Create an empty Git repository.
+  - `--bare` flag to create a bare repository.
+  - `-b` or `--initial-branch` flag to specify the initial branch.
+  - `-q` or `--quiet` flag to suppress the output.
+  - `<directory>` argument to specify the directory to initialize.
 
 ## Testing
 
