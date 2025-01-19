@@ -1,4 +1,4 @@
-use crate::commands::CommandArgs;
+use crate::commands::{git_object_dir, CommandArgs};
 
 use std::fmt;
 use std::io::Write;
@@ -62,7 +62,7 @@ impl CommandArgs for HashObjectArgs {
 /// * `anyhow::Result<()>` - The result of the write operation.
 fn write_blob(blob: &[u8], hash: &str) -> anyhow::Result<()> {
     // Create the object directory if it doesn't exist.
-    let object_dir = format!(".git/objects/{}", &hash[..2]);
+    let object_dir = git_object_dir()?.join(&hash[..2]);
     std::fs::create_dir_all(&object_dir).context("create subdir in .git/objects")?;
 
     // Compress the blob with zlib.
@@ -71,8 +71,7 @@ fn write_blob(blob: &[u8], hash: &str) -> anyhow::Result<()> {
     let compressed = zlib.finish().context("finish zlib")?;
 
     // Write the compressed blob to the object file.
-    let object_name = &hash[2..];
-    let object_path = format!("{}/{}", object_dir, object_name);
+    let object_path = object_dir.join(&hash[2..]);
     std::fs::write(object_path, compressed).context("write compressed blob")
 }
 
