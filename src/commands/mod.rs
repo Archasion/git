@@ -32,6 +32,7 @@ fn get_current_dir() -> anyhow::Result<PathBuf> {
 fn git_dir() -> anyhow::Result<PathBuf> {
     let git_dir_path = std::env::var("GIT_DIR").unwrap_or_else(|_| ".git".to_string());
     let mut current_dir = get_current_dir()?;
+    println!("current_dir: {:?}", current_dir);
 
     while current_dir.exists() {
         let git_dir = current_dir.join(&git_dir_path);

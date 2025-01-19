@@ -153,6 +153,9 @@ mod tests {
         let file_path = temp_dir.dir.path().join("testfile.txt");
         fs::write(&file_path, b"test content").unwrap();
 
+        // Create the .git directory.
+        fs::create_dir(temp_dir.dir.path().join(".git")).unwrap();
+
         let args = HashObjectArgs {
             write: true,
             path: file_path,
@@ -189,9 +192,13 @@ mod tests {
 
     #[test]
     fn write_blob_creates_object_directory() {
-        // Create a temporary file with some content.
+        // Create a temporary directory for testing.
         let temp_dir = TempDir::new();
         let blob = b"blob 12\0test content";
+
+        // Create the .git directory.
+        fs::create_dir(temp_dir.dir.path().join(".git")).unwrap();
+
         // Expected hash of the blob.
         let hash = {
             let mut hasher = Sha1::new();
@@ -209,9 +216,13 @@ mod tests {
 
     #[test]
     fn write_blob_writes_compressed_blob() {
-        // Create a temporary file with some content.
+        // Create a temporary directory for testing.
         let temp_dir = TempDir::new();
         let blob = b"blob 12\0test content";
+
+        // Create the .git directory.
+        fs::create_dir(temp_dir.dir.path().join(".git")).unwrap();
+
         // Expected hash of the blob.
         let hash = {
             let mut hasher = Sha1::new();
