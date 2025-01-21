@@ -79,6 +79,26 @@ impl fmt::Display for ObjectType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             ObjectType::Blob => write!(f, "blob"),
+            ObjectType::Tree => write!(f, "tree"),
+            ObjectType::Commit => write!(f, "commit"),
+            ObjectType::Tag => write!(f, "tag"),
+        }
+    }
+}
+
+impl TryFrom<&[u8]> for ObjectType {
+    type Error = anyhow::Error;
+
+    fn try_from(value: &[u8]) -> anyhow::Result<Self> {
+        match value {
+            b"blob" => Ok(ObjectType::Blob),
+            b"tree" => Ok(ObjectType::Tree),
+            b"commit" => Ok(ObjectType::Commit),
+            b"tag" => Ok(ObjectType::Tag),
+            _ => {
+                let value = std::str::from_utf8(value).context("object type is not valid utf-8")?;
+                anyhow::bail!("unknown object type: {}", value)
+            }
         }
     }
 }
@@ -86,7 +106,7 @@ impl fmt::Display for ObjectType {
 #[derive(Parser, Debug)]
 pub(crate) struct HashObjectArgs {
     /// object type
-    #[arg(short = 't', value_enum, default_value_t, value_name = "type")]
+    #[arg(short = 't', value_enum, default_value_t, name = "type")]
     object_type: ObjectType,
     /// write the object into the object database
     #[arg(short)]
@@ -97,9 +117,12 @@ pub(crate) struct HashObjectArgs {
 }
 
 #[derive(Debug, Default, Clone, ValueEnum)]
-enum ObjectType {
+pub(super) enum ObjectType {
     #[default]
     Blob,
+    Tree,
+    Commit,
+    Tag,
 }
 
 #[cfg(test)]

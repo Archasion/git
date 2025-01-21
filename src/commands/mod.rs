@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use anyhow::Context;
 use clap::Subcommand;
 
+mod cat_file;
 mod hash_object;
 mod init;
 
@@ -11,6 +12,7 @@ impl Command {
         match self {
             Command::HashObject(args) => args.run(),
             Command::Init(args) => args.run(),
+            Command::CatFile(args) => args.run(),
         }
     }
 }
@@ -19,6 +21,7 @@ impl Command {
 pub(crate) enum Command {
     HashObject(hash_object::HashObjectArgs),
     Init(init::InitArgs),
+    CatFile(cat_file::CatFileArgs),
 }
 
 pub(crate) trait CommandArgs {
@@ -32,7 +35,6 @@ fn get_current_dir() -> anyhow::Result<PathBuf> {
 fn git_dir() -> anyhow::Result<PathBuf> {
     let git_dir_path = std::env::var("GIT_DIR").unwrap_or_else(|_| ".git".to_string());
     let mut current_dir = get_current_dir()?;
-    println!("current_dir: {:?}", current_dir);
 
     while current_dir.exists() {
         let git_dir = current_dir.join(&git_dir_path);
@@ -55,4 +57,16 @@ fn git_object_dir() -> anyhow::Result<PathBuf> {
         std::env::var("GIT_OBJECT_DIRECTORY").unwrap_or_else(|_| "objects".to_string());
 
     git_dir().map(|git_dir| git_dir.join(git_object_dir_path))
+}
+
+fn get_object_path(object: &str) -> anyhow::Result<PathBuf> {
+    let object_dir = git_object_dir()?;
+    let object_dir = object_dir.join(&object[..2]);
+    let object_path = object_dir.join(&object[2..]);
+
+    if !object_path.exists() {
+        anyhow::bail!("fatal: object '{}' not found", object);
+    }
+
+    Ok(object_path)
 }
