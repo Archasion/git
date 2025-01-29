@@ -1,11 +1,11 @@
-use crate::commands::{git_object_dir, CommandArgs};
+use crate::commands::CommandArgs;
+use crate::utils::{format_header, git_object_dir, ObjectType};
 
-use std::fmt;
 use std::io::Write;
 use std::path::PathBuf;
 
 use anyhow::Context;
-use clap::{Parser, ValueEnum};
+use clap::Parser;
 use flate2::write::ZlibEncoder;
 use flate2::Compression;
 use sha1::{Digest, Sha1};
@@ -29,7 +29,7 @@ impl CommandArgs for HashObjectArgs {
 
         // Create blob from header and file content.
         let content = std::fs::read(&path).context(format!("read {}", path.display()))?;
-        let header = format!("{} {}\0", object_type, content.len());
+        let header = format_header(object_type, content.len());
         let mut blob = header.into_bytes();
         blob.extend(content);
 
@@ -62,7 +62,7 @@ impl CommandArgs for HashObjectArgs {
 /// * `anyhow::Result<()>` - The result of the write operation.
 fn write_blob(blob: &[u8], hash: &str) -> anyhow::Result<()> {
     // Create the object directory if it doesn't exist.
-    let object_dir = git_object_dir()?.join(&hash[..2]);
+    let object_dir = git_object_dir(false)?.join(&hash[..2]);
     std::fs::create_dir_all(&object_dir).context("create subdir in .git/objects")?;
 
     // Compress the blob with zlib.
@@ -73,34 +73,6 @@ fn write_blob(blob: &[u8], hash: &str) -> anyhow::Result<()> {
     // Write the compressed blob to the object file.
     let object_path = object_dir.join(&hash[2..]);
     std::fs::write(object_path, compressed).context("write compressed blob")
-}
-
-impl fmt::Display for ObjectType {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            ObjectType::Blob => write!(f, "blob"),
-            ObjectType::Tree => write!(f, "tree"),
-            ObjectType::Commit => write!(f, "commit"),
-            ObjectType::Tag => write!(f, "tag"),
-        }
-    }
-}
-
-impl TryFrom<&[u8]> for ObjectType {
-    type Error = anyhow::Error;
-
-    fn try_from(value: &[u8]) -> anyhow::Result<Self> {
-        match value {
-            b"blob" => Ok(ObjectType::Blob),
-            b"tree" => Ok(ObjectType::Tree),
-            b"commit" => Ok(ObjectType::Commit),
-            b"tag" => Ok(ObjectType::Tag),
-            _ => {
-                let value = std::str::from_utf8(value).context("object type is not valid utf-8")?;
-                anyhow::bail!("unknown object type: {}", value)
-            }
-        }
-    }
 }
 
 #[derive(Parser, Debug)]
@@ -116,47 +88,23 @@ pub(crate) struct HashObjectArgs {
     path: PathBuf,
 }
 
-#[derive(Debug, Default, Clone, ValueEnum)]
-pub(super) enum ObjectType {
-    #[default]
-    Blob,
-    Tree,
-    Commit,
-    Tag,
-}
-
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{write_blob, HashObjectArgs};
+    use crate::commands::CommandArgs;
+    use crate::utils::test::TempPwd;
+    use crate::utils::ObjectType;
+
     use std::fs;
+    use std::path::PathBuf;
 
-    /// A temporary directory for testing.
-    /// Changes the current directory to the temporary directory and restores it on drop.
-    struct TempDir {
-        old_dir: PathBuf,
-        dir: tempfile::TempDir,
-    }
-
-    impl TempDir {
-        fn new() -> Self {
-            let old_dir = std::env::current_dir().unwrap();
-            let dir = tempfile::tempdir().unwrap();
-            std::env::set_current_dir(&dir).unwrap();
-            Self { old_dir, dir }
-        }
-    }
-
-    impl Drop for TempDir {
-        fn drop(&mut self) {
-            std::env::set_current_dir(&self.old_dir).unwrap();
-        }
-    }
+    use sha1::{Digest, Sha1};
 
     #[test]
     fn run_hashes_blob_and_prints_hash() {
         // Create a temporary file with some content.
-        let temp_dir = TempDir::new();
-        let file_path = temp_dir.dir.path().join("testfile.txt");
+        let temp_pwd = TempPwd::new();
+        let file_path = temp_pwd.path().join("testfile.txt");
         fs::write(&file_path, b"test content").unwrap();
 
         let args = HashObjectArgs {
@@ -172,12 +120,12 @@ mod tests {
     #[test]
     fn run_writes_blob_to_git_objects() {
         // Create a temporary file with some content.
-        let temp_dir = TempDir::new();
-        let file_path = temp_dir.dir.path().join("testfile.txt");
+        let temp_pwd = TempPwd::new();
+        let file_path = temp_pwd.path().join("testfile.txt");
         fs::write(&file_path, b"test content").unwrap();
 
         // Create the .git directory.
-        fs::create_dir(temp_dir.dir.path().join(".git")).unwrap();
+        fs::create_dir(temp_pwd.path().join(".git")).unwrap();
 
         let args = HashObjectArgs {
             write: true,
@@ -196,7 +144,7 @@ mod tests {
         };
 
         // Check that the object file was written to the `.git/objects` directory.
-        let object_dir = temp_dir.dir.path().join(".git/objects").join(&hash[..2]);
+        let object_dir = temp_pwd.path().join(".git/objects").join(&hash[..2]);
         let object_path = object_dir.join(&hash[2..]);
         assert!(object_path.exists());
     }
@@ -216,11 +164,11 @@ mod tests {
     #[test]
     fn write_blob_creates_object_directory() {
         // Create a temporary directory for testing.
-        let temp_dir = TempDir::new();
+        let temp_pwd = TempPwd::new();
         let blob = b"blob 12\0test content";
 
         // Create the .git directory.
-        fs::create_dir(temp_dir.dir.path().join(".git")).unwrap();
+        fs::create_dir(temp_pwd.path().join(".git")).unwrap();
 
         // Expected hash of the blob.
         let hash = {
@@ -233,18 +181,18 @@ mod tests {
         assert!(result.is_ok());
 
         // Check that the object directory was created.
-        let object_dir = temp_dir.dir.path().join(".git/objects").join(&hash[..2]);
+        let object_dir = temp_pwd.path().join(".git/objects").join(&hash[..2]);
         assert!(object_dir.exists());
     }
 
     #[test]
     fn write_blob_writes_compressed_blob() {
         // Create a temporary directory for testing.
-        let temp_dir = TempDir::new();
+        let temp_pwd = TempPwd::new();
         let blob = b"blob 12\0test content";
 
         // Create the .git directory.
-        fs::create_dir(temp_dir.dir.path().join(".git")).unwrap();
+        fs::create_dir(temp_pwd.path().join(".git")).unwrap();
 
         // Expected hash of the blob.
         let hash = {
@@ -257,7 +205,7 @@ mod tests {
         assert!(result.is_ok());
 
         // Check that the object file was written to the `.git/objects` directory.
-        let object_dir = temp_dir.dir.path().join(".git/objects").join(&hash[..2]);
+        let object_dir = temp_pwd.path().join(".git/objects").join(&hash[..2]);
         let object_path = object_dir.join(&hash[2..]);
         assert!(object_path.exists());
     }
