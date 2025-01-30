@@ -6,19 +6,22 @@ use clap::Args;
 use flate2::read::ZlibDecoder;
 
 use crate::commands::CommandArgs;
-use crate::utils::{get_object_path, parse_header};
+use crate::utils::{get_object_path, parse_header, ObjectType};
 
 impl CommandArgs for CatFileArgs {
     fn run(self) -> anyhow::Result<()> {
+        let mut stdout = std::io::stdout();
+
+        // We only need to read the header for the object type and size
         if self.show_type || self.size {
-            return read_header(&self, &mut std::io::stdout());
+            return read_header(&self, &mut stdout);
         }
 
-        if self.exit_zero {
-            return read_object(&self, &mut std::io::stdout());
+        if self.exit_zero || self.pretty_print {
+            return read_object(&self, &mut stdout);
         }
 
-        unreachable!("either -t, -s, or -e must be specified");
+        unreachable!("either -t, -s, -e, or -p must be specified");
     }
 }
 
@@ -37,6 +40,12 @@ where
     let mut header = Vec::new();
     zlib.read_until(0, &mut header)?;
     let header = parse_header(&header)?;
+
+    // Bail out if the object type is not supported
+    match header.parse_type()? {
+        ObjectType::Blob => {},
+        unknown_type => anyhow::bail!("unsupported object type: {:?}", unknown_type),
+    }
 
     // Read the object content
     let mut content = Vec::new();
@@ -96,7 +105,7 @@ where
     unreachable!("either -t or -s must be specified");
 }
 
-#[derive(Args, Debug)]
+#[derive(Args, Debug, Default)]
 pub(crate) struct CatFileArgs {
     /// show object type
     #[arg(short = 't', groups = ["meta", "flags"])]
@@ -107,6 +116,9 @@ pub(crate) struct CatFileArgs {
     /// check if <object> exists
     #[arg(short, groups = ["content", "flags"])]
     exit_zero: bool,
+    /// pretty-print <object> content
+    #[arg(short, groups = ["content", "flags"])]
+    pretty_print: bool,
     /// allow -s and -t to work with broken/corrupt objects
     #[arg(long, requires = "meta")]
     allow_unknown_type: bool,
@@ -133,6 +145,7 @@ mod tests {
     const OBJECT_HASH_INVALID_SIZE: &str = "5eacd92a2d45548f23ddee14fc6401a141f2dc9f"; // size: 0
     const OBJECT_TYPE: &str = "blob";
 
+    /// Get the compressed representation of [`OBJECT_CONTENT`] and its header
     fn compress_object() -> Vec<u8> {
         let object = format!(
             "{} {}\0{}",
@@ -145,6 +158,7 @@ mod tests {
         zlib.finish().unwrap()
     }
 
+    /// Get the compressed representation of [`OBJECT_CONTENT`] with an unknown type in the header
     fn compress_object_unknown_type() -> Vec<u8> {
         let object = format!("unknown {}\0{}", OBJECT_CONTENT.len(), OBJECT_CONTENT);
         let mut zlib = ZlibEncoder::new(Vec::new(), Compression::default());
@@ -152,6 +166,7 @@ mod tests {
         zlib.finish().unwrap()
     }
 
+    /// Get the compressed representation of [`OBJECT_CONTENT`] with an invalid size in the header
     fn compress_object_invalid_size() -> Vec<u8> {
         let object = format!("{} 0\0{}", OBJECT_TYPE, OBJECT_CONTENT);
         let mut zlib = ZlibEncoder::new(Vec::new(), Compression::default());
@@ -174,11 +189,9 @@ mod tests {
         fs::write(&object_path, compress_object()).unwrap();
 
         let args = CatFileArgs {
-            show_type: false,
-            size: false,
-            exit_zero: false,
-            allow_unknown_type: false,
+            pretty_print: true,
             object_hash: OBJECT_HASH.to_string(),
+            ..Default::default()
         };
 
         let mut output = Vec::new();
@@ -203,11 +216,9 @@ mod tests {
         fs::write(&object_path, compress_object()).unwrap();
 
         let args = CatFileArgs {
-            show_type: false,
-            size: false,
             exit_zero: true,
-            allow_unknown_type: false,
             object_hash: OBJECT_HASH.to_string(),
+            ..Default::default()
         };
 
         let mut output = Vec::new();
@@ -233,10 +244,8 @@ mod tests {
 
         let args = CatFileArgs {
             show_type: true,
-            size: false,
-            exit_zero: false,
-            allow_unknown_type: false,
             object_hash: OBJECT_HASH.to_string(),
+            ..Default::default()
         };
 
         let mut output = Vec::new();
@@ -261,11 +270,9 @@ mod tests {
         fs::write(&object_path, compress_object()).unwrap();
 
         let args = CatFileArgs {
-            show_type: false,
             size: true,
-            exit_zero: false,
-            allow_unknown_type: false,
             object_hash: OBJECT_HASH.to_string(),
+            ..Default::default()
         };
 
         let mut output = Vec::new();
@@ -295,10 +302,9 @@ mod tests {
 
         let args = CatFileArgs {
             show_type: true,
-            size: false,
-            exit_zero: false,
             allow_unknown_type: true,
             object_hash: OBJECT_HASH_UNKNOWN_TYPE.to_string(),
+            ..Default::default()
         };
 
         let mut output = Vec::new();
@@ -327,11 +333,10 @@ mod tests {
         fs::write(&object_path, compress_object_unknown_type()).unwrap();
 
         let args = CatFileArgs {
-            show_type: false,
             size: true,
-            exit_zero: false,
             allow_unknown_type: true,
             object_hash: OBJECT_HASH_UNKNOWN_TYPE.to_string(),
+            ..Default::default()
         };
 
         let mut output = Vec::new();
@@ -361,10 +366,8 @@ mod tests {
 
         let args = CatFileArgs {
             show_type: true,
-            size: false,
-            exit_zero: false,
-            allow_unknown_type: false,
             object_hash: OBJECT_HASH_UNKNOWN_TYPE.to_string(),
+            ..Default::default()
         };
 
         let mut output = Vec::new();
@@ -392,11 +395,9 @@ mod tests {
         fs::write(&object_path, compress_object_unknown_type()).unwrap();
 
         let args = CatFileArgs {
-            show_type: false,
             size: true,
-            exit_zero: false,
-            allow_unknown_type: false,
             object_hash: OBJECT_HASH_UNKNOWN_TYPE.to_string(),
+            ..Default::default()
         };
 
         let mut output = Vec::new();
@@ -424,11 +425,9 @@ mod tests {
         fs::write(&object_path, compress_object_invalid_size()).unwrap();
 
         let args = CatFileArgs {
-            show_type: false,
-            size: false,
-            exit_zero: false,
-            allow_unknown_type: false,
+            pretty_print: true,
             object_hash: OBJECT_HASH_INVALID_SIZE.to_string(),
+            ..Default::default()
         };
 
         let mut output = Vec::new();
@@ -456,11 +455,9 @@ mod tests {
         fs::write(&object_path, compress_object_invalid_size()).unwrap();
 
         let args = CatFileArgs {
-            show_type: false,
-            size: false,
-            exit_zero: false,
-            allow_unknown_type: false,
+            pretty_print: true,
             object_hash: OBJECT_HASH_INVALID_SIZE.to_string(),
+            ..Default::default()
         };
 
         let mut output = Vec::new();
@@ -489,10 +486,8 @@ mod tests {
 
         let args = CatFileArgs {
             show_type: true,
-            size: false,
-            exit_zero: false,
-            allow_unknown_type: false,
             object_hash: OBJECT_HASH_INVALID_SIZE.to_string(),
+            ..Default::default()
         };
 
         let mut output = Vec::new();
@@ -521,11 +516,9 @@ mod tests {
         fs::write(&object_path, compress_object_invalid_size()).unwrap();
 
         let args = CatFileArgs {
-            show_type: false,
             size: true,
-            exit_zero: false,
-            allow_unknown_type: false,
             object_hash: OBJECT_HASH_INVALID_SIZE.to_string(),
+            ..Default::default()
         };
 
         let mut output = Vec::new();
@@ -543,11 +536,9 @@ mod tests {
         let _temp_pwd = TempPwd::new();
 
         let args = CatFileArgs {
-            show_type: false,
-            size: false,
-            exit_zero: false,
-            allow_unknown_type: false,
+            pretty_print: true,
             object_hash: OBJECT_HASH.to_string(),
+            ..Default::default()
         };
         let result = read_object(&args, &mut Vec::new());
 
@@ -562,11 +553,9 @@ mod tests {
         let _temp_pwd = TempPwd::new();
 
         let args = CatFileArgs {
-            show_type: false,
-            size: false,
-            exit_zero: false,
-            allow_unknown_type: false,
+            size: true,
             object_hash: OBJECT_HASH.to_string(),
+            ..Default::default()
         };
         let result = read_header(&args, &mut Vec::new());
 

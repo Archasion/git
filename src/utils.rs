@@ -13,7 +13,7 @@ where
     format!("{} {}\0", object_type, size)
 }
 
-/// Read the header of a `.git/objects` file
+/// Parse the header of a `.git/objects` file into the [`ObjectHeader`] struct.
 pub(crate) fn parse_header(header: &[u8]) -> anyhow::Result<ObjectHeader> {
     // Split the header into type and size
     let mut header = header.splitn(2, |&b| b == b' ');
