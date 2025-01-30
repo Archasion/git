@@ -1,8 +1,9 @@
-use crate::commands::CommandArgs;
-use crate::utils::env;
+use std::path::PathBuf;
 
 use clap::Parser;
-use std::path::PathBuf;
+
+use crate::commands::CommandArgs;
+use crate::utils::env;
 
 impl CommandArgs for InitArgs {
     fn run(self) -> anyhow::Result<()> {
@@ -62,13 +63,13 @@ pub(crate) struct InitArgs {
 
 #[cfg(test)]
 mod tests {
+    use std::fs;
+    use std::path::PathBuf;
+
     use super::InitArgs;
     use crate::commands::CommandArgs;
     use crate::utils::env;
     use crate::utils::test::{TempEnv, TempPwd};
-
-    use std::fs;
-    use std::path::PathBuf;
 
     const INITIAL_BRANCH: &str = "main";
     const CUSTOM_GIT_DIR: &str = "custom_git_dir";

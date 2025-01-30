@@ -1,6 +1,3 @@
-use crate::commands::CommandArgs;
-use crate::utils::{format_header, git_object_dir, ObjectType};
-
 use std::io::Write;
 use std::path::PathBuf;
 
@@ -9,6 +6,9 @@ use clap::Parser;
 use flate2::write::ZlibEncoder;
 use flate2::Compression;
 use sha1::{Digest, Sha1};
+
+use crate::commands::CommandArgs;
+use crate::utils::{format_header, git_object_dir, ObjectType};
 
 impl CommandArgs for HashObjectArgs {
     /// Hashes the object and writes it to the `.git/objects` directory if requested.
@@ -90,15 +90,15 @@ pub(crate) struct HashObjectArgs {
 
 #[cfg(test)]
 mod tests {
-    use super::{write_blob, HashObjectArgs};
-    use crate::commands::CommandArgs;
-    use crate::utils::test::TempPwd;
-    use crate::utils::ObjectType;
-
     use std::fs;
     use std::path::PathBuf;
 
     use sha1::{Digest, Sha1};
+
+    use super::{write_blob, HashObjectArgs};
+    use crate::commands::CommandArgs;
+    use crate::utils::test::TempPwd;
+    use crate::utils::ObjectType;
 
     #[test]
     fn run_hashes_blob_and_prints_hash() {

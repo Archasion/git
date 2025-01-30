@@ -1,12 +1,12 @@
-use crate::commands::CommandArgs;
-use crate::utils::{get_object_path, parse_header};
-
 use std::fs::File;
 use std::io::{BufRead, BufReader, Read, Write};
 
 use anyhow::Context;
 use clap::Args;
 use flate2::read::ZlibDecoder;
+
+use crate::commands::CommandArgs;
+use crate::utils::{get_object_path, parse_header};
 
 impl CommandArgs for CatFileArgs {
     fn run(self) -> anyhow::Result<()> {
@@ -117,14 +117,15 @@ pub(crate) struct CatFileArgs {
 
 #[cfg(test)]
 mod tests {
-    use crate::commands::cat_file::{read_header, read_object, CatFileArgs};
-    use crate::utils::env;
-    use crate::utils::test::{TempEnv, TempPwd};
+    use std::fs;
+    use std::io::Write;
 
     use flate2::write::ZlibEncoder;
     use flate2::Compression;
-    use std::fs;
-    use std::io::Write;
+
+    use crate::commands::cat_file::{read_header, read_object, CatFileArgs};
+    use crate::utils::env;
+    use crate::utils::test::{TempEnv, TempPwd};
 
     const OBJECT_CONTENT: &str = "Hello, World!";
     const OBJECT_HASH: &str = "b45ef6fec89518d314f546fd6c3025367b721684";

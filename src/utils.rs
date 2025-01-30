@@ -74,7 +74,7 @@ pub(crate) fn git_dir() -> anyhow::Result<PathBuf> {
 /// # Arguments
 ///
 /// * `check_exists` - Whether to check if the object directory exists,
-///                    exiting with an error if it does not
+///   exiting with an error if it does not
 ///
 /// # Returns
 ///
@@ -113,7 +113,7 @@ pub(crate) fn git_object_dir(check_exists: bool) -> anyhow::Result<PathBuf> {
 ///
 /// * `hash` - The object hash
 /// * `check_exists` - Whether to check if the object exists,
-///                    exiting with an error if it does not
+///   exiting with an error if it does not
 ///
 /// # Returns
 ///
@@ -189,7 +189,7 @@ impl TryFrom<&[u8]> for ObjectType {
             _ => {
                 let value = std::str::from_utf8(value).context("object type is not valid utf-8")?;
                 anyhow::bail!("unknown object type: {}", value)
-            }
+            },
         }
     }
 }
