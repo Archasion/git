@@ -1,3 +1,5 @@
+use std::io::Write;
+
 use clap::Subcommand;
 
 mod cat_file;
@@ -6,10 +8,12 @@ mod init;
 
 impl Command {
     pub fn run(self) -> anyhow::Result<()> {
+        let mut stdout = std::io::stdout();
+
         match self {
-            Command::HashObject(args) => args.run(),
-            Command::Init(args) => args.run(),
-            Command::CatFile(args) => args.run(),
+            Command::HashObject(args) => args.run(&mut stdout),
+            Command::Init(args) => args.run(&mut stdout),
+            Command::CatFile(args) => args.run(&mut stdout),
         }
     }
 }
@@ -22,5 +26,7 @@ pub(crate) enum Command {
 }
 
 pub(crate) trait CommandArgs {
-    fn run(self) -> anyhow::Result<()>;
+    fn run<W>(self, writer: &mut W) -> anyhow::Result<()>
+    where
+        W: Write;
 }

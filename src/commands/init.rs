@@ -1,3 +1,4 @@
+use std::io::Write;
 use std::path::PathBuf;
 
 use clap::Parser;
@@ -6,7 +7,10 @@ use crate::commands::CommandArgs;
 use crate::utils::env;
 
 impl CommandArgs for InitArgs {
-    fn run(self) -> anyhow::Result<()> {
+    fn run<W>(self, writer: &mut W) -> anyhow::Result<()>
+    where
+        W: Write,
+    {
         // Initializes a new git repository in the specified directory.
         let git_dir = if self.bare {
             if let Some(directory) = self.directory {
@@ -36,10 +40,11 @@ impl CommandArgs for InitArgs {
         std::fs::write(git_dir.join("HEAD"), head)?;
 
         if !self.quiet {
-            println!(
+            let output = format!(
                 "Initialized empty Git repository in {}",
                 git_dir.canonicalize()?.to_str().unwrap()
             );
+            writer.write_all(output.as_bytes())?;
         }
         Ok(())
     }
@@ -76,7 +81,7 @@ mod tests {
     const CUSTOM_OBJECT_DIR: &str = "custom_object_dir";
 
     #[test]
-    fn init_repository() {
+    fn inits_repo() {
         let _git_dir_env = TempEnv::new(env::GIT_DIR, None);
         let _git_object_dir_env = TempEnv::new(env::GIT_OBJECT_DIRECTORY, None);
 
@@ -89,7 +94,7 @@ mod tests {
             initial_branch: INITIAL_BRANCH.to_string(),
         };
 
-        let result = args.run();
+        let result = args.run(&mut Vec::new());
         assert!(result.is_ok());
         assert!(git_dir.exists());
         assert!(git_dir.join("objects").exists());
@@ -101,7 +106,7 @@ mod tests {
     }
 
     #[test]
-    fn init_bare_repository() {
+    fn inits_bare_repo() {
         let _git_dir_env = TempEnv::new(env::GIT_DIR, None);
         let _git_object_dir_env = TempEnv::new(env::GIT_OBJECT_DIRECTORY, None);
 
@@ -113,7 +118,7 @@ mod tests {
             initial_branch: INITIAL_BRANCH.to_string(),
         };
 
-        let result = args.run();
+        let result = args.run(&mut Vec::new());
         assert!(result.is_ok());
         assert!(temp_pwd.path().join("objects").exists());
         assert!(temp_pwd.path().join("refs").exists());
@@ -124,7 +129,7 @@ mod tests {
     }
 
     #[test]
-    fn init_repository_with_branch() {
+    fn inits_repo_with_branch() {
         let _git_dir_env = TempEnv::new(env::GIT_DIR, None);
         let _git_object_dir_env = TempEnv::new(env::GIT_OBJECT_DIRECTORY, None);
 
@@ -138,7 +143,7 @@ mod tests {
             initial_branch: custom_branch.clone(),
         };
 
-        let result = args.run();
+        let result = args.run(&mut Vec::new());
         assert!(result.is_ok());
         assert!(git_dir.exists());
         assert!(git_dir.join("HEAD").exists());
@@ -148,7 +153,7 @@ mod tests {
     }
 
     #[test]
-    fn init_repository_with_git_dir() {
+    fn inits_repo_with_custom_git_dir() {
         let _git_dir_env = TempEnv::new(env::GIT_DIR, Some(CUSTOM_GIT_DIR));
         let _git_object_dir_env = TempEnv::new(env::GIT_OBJECT_DIRECTORY, None);
 
@@ -161,7 +166,7 @@ mod tests {
             initial_branch: INITIAL_BRANCH.to_string(),
         };
 
-        let result = args.run();
+        let result = args.run(&mut Vec::new());
         assert!(result.is_ok());
         assert!(git_dir.exists());
         assert!(git_dir.join("objects").exists());
@@ -173,7 +178,7 @@ mod tests {
     }
 
     #[test]
-    fn init_repository_with_object_dir() {
+    fn inits_repo_with_custom_git_object_dir() {
         let _git_dir_env = TempEnv::new(env::GIT_DIR, None);
         let _git_object_dir_env = TempEnv::new(env::GIT_OBJECT_DIRECTORY, Some(CUSTOM_OBJECT_DIR));
 
@@ -186,14 +191,14 @@ mod tests {
             initial_branch: INITIAL_BRANCH.to_string(),
         };
 
-        let result = args.run();
+        let result = args.run(&mut Vec::new());
         assert!(result.is_ok());
         assert!(git_dir.exists());
         assert!(git_dir.join(CUSTOM_OBJECT_DIR).exists());
     }
 
     #[test]
-    fn fail_on_invalid_dir() {
+    fn fail_on_invalid_init_path() {
         let _git_dir_env = TempEnv::new(env::GIT_DIR, None);
         let _git_object_dir_env = TempEnv::new(env::GIT_OBJECT_DIRECTORY, None);
 
@@ -204,7 +209,7 @@ mod tests {
             initial_branch: INITIAL_BRANCH.to_string(),
         };
 
-        let result = args.run();
+        let result = args.run(&mut Vec::new());
         assert!(result.is_err());
     }
 }

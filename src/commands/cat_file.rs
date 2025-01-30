@@ -9,16 +9,17 @@ use crate::commands::CommandArgs;
 use crate::utils::{get_object_path, parse_header, ObjectType};
 
 impl CommandArgs for CatFileArgs {
-    fn run(self) -> anyhow::Result<()> {
-        let mut stdout = std::io::stdout();
-
+    fn run<W>(self, writer: &mut W) -> anyhow::Result<()>
+    where
+        W: Write,
+    {
         // We only need to read the header for the object type and size
-        if self.show_type || self.size {
-            return read_header(&self, &mut stdout);
+        if self.flags.show_type || self.flags.size {
+            return read_header(&self, writer);
         }
 
-        if self.exit_zero || self.pretty_print {
-            return read_object(&self, &mut stdout);
+        if self.flags.exit_zero || self.flags.pretty_print {
+            return read_object(&self, writer);
         }
 
         unreachable!("either -t, -s, -e, or -p must be specified");
@@ -57,7 +58,7 @@ where
     }
 
     // Exit early if the object exists and passes validation
-    if args.exit_zero {
+    if args.flags.exit_zero {
         return Ok(());
     }
 
@@ -87,7 +88,7 @@ where
     }
 
     // If the object type is requested, print it and return
-    if args.show_type {
+    if args.flags.show_type {
         writer
             .write_all(header.object_type)
             .context("write object type to stdout")?;
@@ -95,7 +96,7 @@ where
     }
 
     // If the object size is requested, print it and return
-    if args.size {
+    if args.flags.size {
         writer
             .write_all(header.size)
             .context("write object size to stdout")?;
@@ -105,26 +106,33 @@ where
     unreachable!("either -t or -s must be specified");
 }
 
-#[derive(Args, Debug, Default)]
+#[derive(Args, Debug)]
 pub(crate) struct CatFileArgs {
-    /// show object type
-    #[arg(short = 't', groups = ["meta", "flags"])]
-    show_type: bool,
-    /// show object size
-    #[arg(short, groups = ["meta", "flags"])]
-    size: bool,
-    /// check if <object> exists
-    #[arg(short, groups = ["content", "flags"])]
-    exit_zero: bool,
-    /// pretty-print <object> content
-    #[arg(short, groups = ["content", "flags"])]
-    pretty_print: bool,
+    #[command(flatten)]
+    flags: CatFileFlags,
     /// allow -s and -t to work with broken/corrupt objects
     #[arg(long, requires = "meta")]
     allow_unknown_type: bool,
     /// the object to display
     #[arg(name = "object")]
     object_hash: String,
+}
+
+#[derive(Args, Debug)]
+#[group(id = "flags", required = true)]
+struct CatFileFlags {
+    /// show object type
+    #[arg(short = 't', group = "meta")]
+    show_type: bool,
+    /// show object size
+    #[arg(short, group = "meta")]
+    size: bool,
+    /// check if <object> exists
+    #[arg(short)]
+    exit_zero: bool,
+    /// pretty-print <object> content
+    #[arg(short)]
+    pretty_print: bool,
 }
 
 #[cfg(test)]
@@ -135,7 +143,8 @@ mod tests {
     use flate2::write::ZlibEncoder;
     use flate2::Compression;
 
-    use crate::commands::cat_file::{read_header, read_object, CatFileArgs};
+    use crate::commands::cat_file::{CatFileArgs, CatFileFlags};
+    use crate::commands::CommandArgs;
     use crate::utils::env;
     use crate::utils::test::{TempEnv, TempPwd};
 
@@ -189,13 +198,18 @@ mod tests {
         fs::write(&object_path, compress_object()).unwrap();
 
         let args = CatFileArgs {
-            pretty_print: true,
+            flags: CatFileFlags {
+                show_type: false,
+                size: false,
+                exit_zero: false,
+                pretty_print: true,
+            },
+            allow_unknown_type: false,
             object_hash: OBJECT_HASH.to_string(),
-            ..Default::default()
         };
 
         let mut output = Vec::new();
-        let result = read_object(&args, &mut output);
+        let result = args.run(&mut output);
 
         assert!(result.is_ok());
         assert_eq!(output, OBJECT_CONTENT.as_bytes());
@@ -216,13 +230,18 @@ mod tests {
         fs::write(&object_path, compress_object()).unwrap();
 
         let args = CatFileArgs {
-            exit_zero: true,
+            flags: CatFileFlags {
+                show_type: false,
+                size: false,
+                exit_zero: true,
+                pretty_print: false,
+            },
+            allow_unknown_type: false,
             object_hash: OBJECT_HASH.to_string(),
-            ..Default::default()
         };
 
         let mut output = Vec::new();
-        let result = read_object(&args, &mut output);
+        let result = args.run(&mut output);
 
         assert!(result.is_ok());
         assert!(output.is_empty());
@@ -243,13 +262,18 @@ mod tests {
         fs::write(&object_path, compress_object()).unwrap();
 
         let args = CatFileArgs {
-            show_type: true,
+            flags: CatFileFlags {
+                show_type: true,
+                size: false,
+                exit_zero: false,
+                pretty_print: false,
+            },
+            allow_unknown_type: false,
             object_hash: OBJECT_HASH.to_string(),
-            ..Default::default()
         };
 
         let mut output = Vec::new();
-        let result = read_header(&args, &mut output);
+        let result = args.run(&mut output);
 
         assert!(result.is_ok());
         assert_eq!(output, OBJECT_TYPE.as_bytes());
@@ -270,13 +294,18 @@ mod tests {
         fs::write(&object_path, compress_object()).unwrap();
 
         let args = CatFileArgs {
-            size: true,
+            flags: CatFileFlags {
+                show_type: false,
+                size: true,
+                exit_zero: false,
+                pretty_print: false,
+            },
+            allow_unknown_type: false,
             object_hash: OBJECT_HASH.to_string(),
-            ..Default::default()
         };
 
         let mut output = Vec::new();
-        let result = read_header(&args, &mut output);
+        let result = args.run(&mut output);
 
         assert!(result.is_ok());
         assert_eq!(output, OBJECT_CONTENT.len().to_string().as_bytes());
@@ -301,14 +330,18 @@ mod tests {
         fs::write(&object_path, compress_object_unknown_type()).unwrap();
 
         let args = CatFileArgs {
-            show_type: true,
+            flags: CatFileFlags {
+                show_type: true,
+                size: false,
+                exit_zero: false,
+                pretty_print: false,
+            },
             allow_unknown_type: true,
             object_hash: OBJECT_HASH_UNKNOWN_TYPE.to_string(),
-            ..Default::default()
         };
 
         let mut output = Vec::new();
-        let result = read_header(&args, &mut output);
+        let result = args.run(&mut output);
 
         assert!(result.is_ok());
         assert_eq!(output, b"unknown");
@@ -333,14 +366,18 @@ mod tests {
         fs::write(&object_path, compress_object_unknown_type()).unwrap();
 
         let args = CatFileArgs {
-            size: true,
+            flags: CatFileFlags {
+                show_type: false,
+                size: true,
+                exit_zero: false,
+                pretty_print: false,
+            },
             allow_unknown_type: true,
             object_hash: OBJECT_HASH_UNKNOWN_TYPE.to_string(),
-            ..Default::default()
         };
 
         let mut output = Vec::new();
-        let result = read_header(&args, &mut output);
+        let result = args.run(&mut output);
 
         assert!(result.is_ok());
         assert_eq!(output, OBJECT_CONTENT.len().to_string().as_bytes());
@@ -365,13 +402,18 @@ mod tests {
         fs::write(&object_path, compress_object_unknown_type()).unwrap();
 
         let args = CatFileArgs {
-            show_type: true,
+            flags: CatFileFlags {
+                show_type: true,
+                size: false,
+                exit_zero: false,
+                pretty_print: false,
+            },
+            allow_unknown_type: false,
             object_hash: OBJECT_HASH_UNKNOWN_TYPE.to_string(),
-            ..Default::default()
         };
 
         let mut output = Vec::new();
-        let result = read_header(&args, &mut output);
+        let result = args.run(&mut output);
 
         assert!(result.is_err());
     }
@@ -395,13 +437,18 @@ mod tests {
         fs::write(&object_path, compress_object_unknown_type()).unwrap();
 
         let args = CatFileArgs {
-            size: true,
+            flags: CatFileFlags {
+                show_type: false,
+                size: true,
+                exit_zero: false,
+                pretty_print: false,
+            },
+            allow_unknown_type: false,
             object_hash: OBJECT_HASH_UNKNOWN_TYPE.to_string(),
-            ..Default::default()
         };
 
         let mut output = Vec::new();
-        let result = read_header(&args, &mut output);
+        let result = args.run(&mut output);
 
         assert!(result.is_err());
     }
@@ -425,13 +472,18 @@ mod tests {
         fs::write(&object_path, compress_object_invalid_size()).unwrap();
 
         let args = CatFileArgs {
-            pretty_print: true,
+            flags: CatFileFlags {
+                show_type: false,
+                size: false,
+                exit_zero: false,
+                pretty_print: true,
+            },
+            allow_unknown_type: false,
             object_hash: OBJECT_HASH_INVALID_SIZE.to_string(),
-            ..Default::default()
         };
 
         let mut output = Vec::new();
-        let result = read_object(&args, &mut output);
+        let result = args.run(&mut output);
 
         assert!(result.is_err());
     }
@@ -455,13 +507,18 @@ mod tests {
         fs::write(&object_path, compress_object_invalid_size()).unwrap();
 
         let args = CatFileArgs {
-            pretty_print: true,
+            flags: CatFileFlags {
+                show_type: false,
+                size: false,
+                exit_zero: false,
+                pretty_print: true,
+            },
+            allow_unknown_type: false,
             object_hash: OBJECT_HASH_INVALID_SIZE.to_string(),
-            ..Default::default()
         };
 
         let mut output = Vec::new();
-        let result = read_object(&args, &mut output);
+        let result = args.run(&mut output);
 
         assert!(result.is_err());
     }
@@ -485,13 +542,18 @@ mod tests {
         fs::write(&object_path, compress_object_invalid_size()).unwrap();
 
         let args = CatFileArgs {
-            show_type: true,
+            flags: CatFileFlags {
+                show_type: true,
+                size: false,
+                exit_zero: false,
+                pretty_print: false,
+            },
+            allow_unknown_type: false,
             object_hash: OBJECT_HASH_INVALID_SIZE.to_string(),
-            ..Default::default()
         };
 
         let mut output = Vec::new();
-        let result = read_header(&args, &mut output);
+        let result = args.run(&mut output);
 
         assert!(result.is_ok());
         assert_eq!(output, OBJECT_TYPE.as_bytes());
@@ -516,13 +578,18 @@ mod tests {
         fs::write(&object_path, compress_object_invalid_size()).unwrap();
 
         let args = CatFileArgs {
-            size: true,
+            flags: CatFileFlags {
+                show_type: false,
+                size: true,
+                exit_zero: false,
+                pretty_print: false,
+            },
+            allow_unknown_type: false,
             object_hash: OBJECT_HASH_INVALID_SIZE.to_string(),
-            ..Default::default()
         };
 
         let mut output = Vec::new();
-        let result = read_header(&args, &mut output);
+        let result = args.run(&mut output);
 
         assert!(result.is_ok());
         assert_eq!(output, b"0");
@@ -536,12 +603,17 @@ mod tests {
         let _temp_pwd = TempPwd::new();
 
         let args = CatFileArgs {
-            pretty_print: true,
+            flags: CatFileFlags {
+                show_type: false,
+                size: false,
+                exit_zero: false,
+                pretty_print: true,
+            },
+            allow_unknown_type: false,
             object_hash: OBJECT_HASH.to_string(),
-            ..Default::default()
         };
-        let result = read_object(&args, &mut Vec::new());
 
+        let result = args.run(&mut Vec::new());
         assert!(result.is_err());
     }
 
@@ -553,12 +625,17 @@ mod tests {
         let _temp_pwd = TempPwd::new();
 
         let args = CatFileArgs {
-            size: true,
+            flags: CatFileFlags {
+                show_type: false,
+                size: true,
+                exit_zero: false,
+                pretty_print: false,
+            },
+            allow_unknown_type: false,
             object_hash: OBJECT_HASH.to_string(),
-            ..Default::default()
         };
-        let result = read_header(&args, &mut Vec::new());
 
+        let result = args.run(&mut Vec::new());
         assert!(result.is_err());
     }
 }
