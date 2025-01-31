@@ -45,10 +45,9 @@ where
     // Read the object content
     let mut buf = Vec::new();
     let object_size = match header.parse_type()? {
-        ObjectType::Blob => zlib.read_to_end(&mut buf)?,
-        ObjectType::Tree => read_tree(&mut zlib, &mut buf)?,
-        // Bail out if the object type is not supported
-        t => anyhow::bail!("unsupported object type: {:?}", t),
+        ObjectType::Tree => read_tree_pretty(&mut zlib, &mut buf)?,
+        // Blobs, commits, and tags are pretty-printed as is
+        _ => zlib.read_to_end(&mut buf)?,
     };
 
     // Ensure the object size matches the header
@@ -65,13 +64,16 @@ where
     writer.write_all(&buf).context("write object to stdout")
 }
 
-fn read_tree(zlib: &mut BufReader<ZlibDecoder<File>>, buf: &mut Vec<u8>) -> anyhow::Result<usize> {
+fn read_tree_pretty(
+    zlib: &mut BufReader<ZlibDecoder<File>>,
+    buf: &mut Vec<u8>,
+) -> anyhow::Result<usize> {
     let mut entry = Vec::new();
     let mut object_size = 0;
 
     loop {
         // Read the entry mode
-        let mut mode = Vec::new();
+        let mut mode = Vec::with_capacity(6);
         zlib.read_until(b' ', &mut mode)?;
         // Exit the loop if the mode is empty
         // This indicates the end of the tree
@@ -108,9 +110,8 @@ fn read_tree(zlib: &mut BufReader<ZlibDecoder<File>>, buf: &mut Vec<u8>) -> anyh
         entry.push(b'\n');
 
         // Append the entry to the buffer
-        // and clear the entry for the next iteration
-        buf.extend_from_slice(&entry);
-        entry.clear();
+        // Doing so will also clear the entry buffer
+        buf.append(&mut entry);
     }
 
     Ok(object_size)

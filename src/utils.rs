@@ -8,8 +8,7 @@ const HEX_CHARS: &[u8] = b"0123456789abcdef";
 
 /// Convert a binary slice to a hex slice.
 pub(crate) fn binary_to_hex_bytes(bytes: &mut Vec<u8>) {
-    let n = bytes.len();
-    for _ in 0..n {
+    for _ in 0..bytes.len() {
         let byte = bytes.remove(0);
         bytes.push(HEX_CHARS[(byte >> 4) as usize]);
         bytes.push(HEX_CHARS[(byte & 0xf) as usize]);
