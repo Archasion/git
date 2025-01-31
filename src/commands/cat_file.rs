@@ -6,31 +6,31 @@ use clap::Args;
 use flate2::read::ZlibDecoder;
 
 use crate::commands::CommandArgs;
-use crate::utils::{get_object_path, parse_header, ObjectType};
+use crate::utils::{binary_to_hex_bytes, get_object_path, parse_header, ObjectType};
 
 impl CommandArgs for CatFileArgs {
     fn run<W>(self, writer: &mut W) -> anyhow::Result<()>
     where
         W: Write,
     {
-        // We only need to read the header for the object type and size
-        if self.flags.show_type || self.flags.size {
-            return read_header(&self, writer);
+        if self.flags.show_type {
+            return read_object_type(&self.object_hash, self.allow_unknown_type, writer);
         }
-
+        if self.flags.size {
+            return read_object_size(&self.object_hash, self.allow_unknown_type, writer);
+        }
         if self.flags.exit_zero || self.flags.pretty_print {
-            return read_object(&self, writer);
+            return read_object_pretty(&self.object_hash, self.flags.exit_zero, writer);
         }
-
         unreachable!("either -t, -s, -e, or -p must be specified");
     }
 }
 
-fn read_object<W>(args: &CatFileArgs, writer: &mut W) -> anyhow::Result<()>
+fn read_object_pretty<W>(hash: &str, exit: bool, writer: &mut W) -> anyhow::Result<()>
 where
     W: Write,
 {
-    let object_path = get_object_path(&args.object_hash, true)?;
+    let object_path = get_object_path(hash, true)?;
     let file = File::open(object_path)?;
 
     // Create a zlib decoder to read the object header and content
@@ -42,35 +42,111 @@ where
     zlib.read_until(0, &mut header)?;
     let header = parse_header(&header)?;
 
-    // Bail out if the object type is not supported
-    match header.parse_type()? {
-        ObjectType::Blob => {},
-        unknown_type => anyhow::bail!("unsupported object type: {:?}", unknown_type),
-    }
-
     // Read the object content
-    let mut content = Vec::new();
-    zlib.read_to_end(&mut content)?;
+    let mut buf = Vec::new();
+    let object_size = match header.parse_type()? {
+        ObjectType::Blob => zlib.read_to_end(&mut buf)?,
+        ObjectType::Tree => read_tree(&mut zlib, &mut buf)?,
+        // Bail out if the object type is not supported
+        t => anyhow::bail!("unsupported object type: {:?}", t),
+    };
 
     // Ensure the object size matches the header
-    if header.parse_size()? != content.len() {
+    if header.parse_size()? != object_size {
         anyhow::bail!("object size does not match header");
     }
 
     // Exit early if the object exists and passes validation
-    if args.flags.exit_zero {
+    if exit {
         return Ok(());
     }
 
     // Output the object content to stdout
-    writer.write_all(&content).context("write object to stdout")
+    writer.write_all(&buf).context("write object to stdout")
 }
 
-fn read_header<W>(args: &CatFileArgs, writer: &mut W) -> anyhow::Result<()>
+fn read_tree(zlib: &mut BufReader<ZlibDecoder<File>>, buf: &mut Vec<u8>) -> anyhow::Result<usize> {
+    let mut entry = Vec::new();
+    let mut object_size = 0;
+
+    loop {
+        // Read the entry mode
+        let mut mode = Vec::new();
+        zlib.read_until(b' ', &mut mode)?;
+        // Exit the loop if the mode is empty
+        // This indicates the end of the tree
+        if mode.is_empty() {
+            break;
+        }
+        entry.extend(mode);
+
+        // Read the entry name (file name)
+        let mut name = Vec::new();
+        zlib.read_until(0, &mut name)?;
+
+        // Read the entry hash
+        // Allocate enough space for a 40-byte hex hash
+        let mut hash = Vec::with_capacity(40);
+        zlib.take(20).read_to_end(&mut hash)?;
+
+        // Add the entry size to the total size
+        object_size += entry.len() + hash.len() + name.len();
+        // Convert the binary hash to hex
+        binary_to_hex_bytes(&mut hash);
+
+        // Find the object type of the entry
+        let hash_str = std::str::from_utf8(&hash).context("object hash is not valid utf-8")?;
+        let mut object_type = Vec::new();
+        read_object_type(hash_str, false, &mut object_type)?;
+
+        // Append the remaining entry fields
+        entry.extend(object_type);
+        entry.push(b' ');
+        entry.extend(hash);
+        entry.push(b'\t');
+        entry.extend(name);
+        entry.push(b'\n');
+
+        // Append the entry to the buffer
+        // and clear the entry for the next iteration
+        buf.extend_from_slice(&entry);
+        entry.clear();
+    }
+
+    Ok(object_size)
+}
+
+fn read_object_type<W>(hash: &str, allow_unknown_type: bool, writer: &mut W) -> anyhow::Result<()>
 where
     W: Write,
 {
-    let object_path = get_object_path(&args.object_hash, true)?;
+    let object_path = get_object_path(hash, true)?;
+    let file = File::open(object_path)?;
+
+    // Create a zlib decoder to read the object header
+    let zlib = ZlibDecoder::new(file);
+    let mut zlib = BufReader::new(zlib);
+
+    // Read the object header
+    let mut buf = Vec::new();
+    zlib.read_until(b' ', &mut buf)?;
+    buf.pop(); // Remove the trailing space
+
+    // Validate the object type
+    if !allow_unknown_type {
+        ObjectType::try_from(buf.as_slice())?;
+    }
+
+    writer
+        .write_all(&buf)
+        .context("write object type to writer")
+}
+
+fn read_object_size<W>(hash: &str, allow_unknown_type: bool, writer: &mut W) -> anyhow::Result<()>
+where
+    W: Write,
+{
+    let object_path = get_object_path(hash, true)?;
     let file = File::open(object_path)?;
 
     // Create a zlib decoder to read the object header
@@ -82,28 +158,14 @@ where
     zlib.read_until(0, &mut buf)?;
     let header = parse_header(&buf)?;
 
-    if !args.allow_unknown_type {
+    if !allow_unknown_type {
         // Bail out if the object type fails to parse
         header.parse_type()?;
     }
 
-    // If the object type is requested, print it and return
-    if args.flags.show_type {
-        writer
-            .write_all(header.object_type)
-            .context("write object type to stdout")?;
-        return Ok(());
-    }
-
-    // If the object size is requested, print it and return
-    if args.flags.size {
-        writer
-            .write_all(header.size)
-            .context("write object size to stdout")?;
-        return Ok(());
-    }
-
-    unreachable!("either -t or -s must be specified");
+    writer
+        .write_all(header.size)
+        .context("write object size to writer")
 }
 
 #[derive(Args, Debug)]

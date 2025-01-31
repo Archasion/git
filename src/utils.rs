@@ -4,6 +4,18 @@ use std::path::PathBuf;
 use anyhow::Context;
 use clap::ValueEnum;
 
+const HEX_CHARS: &[u8] = b"0123456789abcdef";
+
+/// Convert a binary slice to a hex slice.
+pub(crate) fn binary_to_hex_bytes(bytes: &mut Vec<u8>) {
+    let n = bytes.len();
+    for _ in 0..n {
+        let byte = bytes.remove(0);
+        bytes.push(HEX_CHARS[(byte >> 4) as usize]);
+        bytes.push(HEX_CHARS[(byte & 0xf) as usize]);
+    }
+}
+
 /// Format the header of a `.git/objects` file
 pub(crate) fn format_header<O, S>(object_type: O, size: S) -> String
 where
@@ -199,6 +211,8 @@ impl TryFrom<&[u8]> for ObjectType {
 pub(crate) mod test {
     use std::path::{Path, PathBuf};
 
+    use super::binary_to_hex_bytes;
+
     /// A temporary environment for testing.
     /// Changes the environment variable and restores it on drop.
     /// Tests must be run serially to avoid conflicts (`cargo test -- --test-threads=1`)
@@ -297,6 +311,13 @@ pub(crate) mod test {
             // Restore the current directory
             std::env::set_current_dir(&self.old_pwd).unwrap();
         }
+    }
+
+    #[test]
+    fn valid_binary_to_hex_bytes() {
+        let mut binary = vec![0x00, 0x01, 0x02, 0x03];
+        binary_to_hex_bytes(&mut binary);
+        assert_eq!(binary, b"00010203");
     }
 }
 
