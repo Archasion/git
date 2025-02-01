@@ -1,16 +1,19 @@
-use std::path::PathBuf;
+use std::io::Write;
 
-use anyhow::Context;
 use clap::Subcommand;
 
+mod cat_file;
 mod hash_object;
 mod init;
 
 impl Command {
     pub fn run(self) -> anyhow::Result<()> {
+        let mut stdout = std::io::stdout();
+
         match self {
-            Command::HashObject(args) => args.run(),
-            Command::Init(args) => args.run(),
+            Command::HashObject(args) => args.run(&mut stdout),
+            Command::Init(args) => args.run(&mut stdout),
+            Command::CatFile(args) => args.run(&mut stdout),
         }
     }
 }
@@ -19,40 +22,11 @@ impl Command {
 pub(crate) enum Command {
     HashObject(hash_object::HashObjectArgs),
     Init(init::InitArgs),
+    CatFile(cat_file::CatFileArgs),
 }
 
 pub(crate) trait CommandArgs {
-    fn run(self) -> anyhow::Result<()>;
-}
-
-fn get_current_dir() -> anyhow::Result<PathBuf> {
-    std::env::current_dir().context("get path of current directory")
-}
-
-fn git_dir() -> anyhow::Result<PathBuf> {
-    let git_dir_path = std::env::var("GIT_DIR").unwrap_or_else(|_| ".git".to_string());
-    let mut current_dir = get_current_dir()?;
-    println!("current_dir: {:?}", current_dir);
-
-    while current_dir.exists() {
-        let git_dir = current_dir.join(&git_dir_path);
-
-        if git_dir.exists() {
-            return Ok(git_dir);
-        }
-
-        current_dir = current_dir
-            .parent()
-            .context("get path of parent directory")?
-            .to_path_buf();
-    }
-
-    anyhow::bail!("not a git repository (or any of the parent directories): .git")
-}
-
-fn git_object_dir() -> anyhow::Result<PathBuf> {
-    let git_object_dir_path =
-        std::env::var("GIT_OBJECT_DIRECTORY").unwrap_or_else(|_| "objects".to_string());
-
-    git_dir().map(|git_dir| git_dir.join(git_object_dir_path))
+    fn run<W>(self, writer: &mut W) -> anyhow::Result<()>
+    where
+        W: Write;
 }
