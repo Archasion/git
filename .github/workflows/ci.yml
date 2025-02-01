@@ -41,7 +41,7 @@ jobs:
       - name: Build
         run: cargo build --all-targets
       - name: Test
-        run: cargo test -- --test-threads=1
+        run: cargo test
 
   lint:
     runs-on: ubuntu-22.04

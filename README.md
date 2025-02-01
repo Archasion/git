@@ -22,9 +22,10 @@ This is a simple attempt at re-creating some of the functionality of the `git` c
 
 ## Testing
 
-Due to the nature of the project, tests must be run sequentially. To run the tests, use the
-following command:
+Due to the nature of the project, tests must be run single-threaded. This is enforced by the `RUST_TEST_THREADS=1` environment variable in the [`.cargo/config.toml`](./.cargo/config.toml) file.
+
+To run the tests, use the following command:
 
 ```sh
-cargo test -- --test-threads=1
+cargo test
 ```
