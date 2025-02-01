@@ -8,7 +8,8 @@ use flate2::Compression;
 use sha1::{Digest, Sha1};
 
 use crate::commands::CommandArgs;
-use crate::utils::{format_header, git_object_dir, ObjectType};
+use crate::utils::git_object_dir;
+use crate::utils::objects::{format_header, ObjectType};
 
 impl CommandArgs for HashObjectArgs {
     /// Hashes the object and writes it to the `.git/objects` directory if requested.
@@ -103,8 +104,9 @@ mod tests {
 
     use super::{write_blob, HashObjectArgs};
     use crate::commands::CommandArgs;
+    use crate::utils::env;
+    use crate::utils::objects::ObjectType;
     use crate::utils::test::{TempEnv, TempPwd};
-    use crate::utils::{env, ObjectType};
 
     const OBJECT_CONTENT: &str = "Hello, World!";
     const FILE_NAME: &str = "testfile.txt";

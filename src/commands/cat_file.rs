@@ -6,7 +6,8 @@ use clap::Args;
 use flate2::read::ZlibDecoder;
 
 use crate::commands::CommandArgs;
-use crate::utils::{get_object_path, hex, parse_header, ObjectType};
+use crate::utils::objects::{parse_header, ObjectType};
+use crate::utils::{get_object_path, hex};
 
 impl CommandArgs for CatFileArgs {
     fn run<W>(self, writer: &mut W) -> anyhow::Result<()>
