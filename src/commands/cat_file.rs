@@ -6,7 +6,7 @@ use clap::Args;
 use flate2::read::ZlibDecoder;
 
 use crate::commands::CommandArgs;
-use crate::utils::{binary_to_hex_bytes, get_object_path, parse_header, ObjectType};
+use crate::utils::{get_object_path, hex, parse_header, ObjectType};
 
 impl CommandArgs for CatFileArgs {
     fn run<W>(self, writer: &mut W) -> anyhow::Result<()>
@@ -68,10 +68,12 @@ fn read_tree_pretty(
     zlib: &mut BufReader<ZlibDecoder<File>>,
     buf: &mut Vec<u8>,
 ) -> anyhow::Result<usize> {
-    let mut entry = Vec::new();
+    let mut entries = Vec::new();
     let mut object_size = 0;
 
     loop {
+        let mut entry = Vec::new();
+
         // Read the entry mode
         let mut mode = Vec::with_capacity(6);
         zlib.read_until(b' ', &mut mode)?;
@@ -94,7 +96,7 @@ fn read_tree_pretty(
         // Add the entry size to the total size
         object_size += entry.len() + hash.len() + name.len();
         // Convert the binary hash to hex
-        binary_to_hex_bytes(&mut hash);
+        hex::encode_in_place(&mut hash);
 
         // Find the object type of the entry
         let hash_str = std::str::from_utf8(&hash).context("object hash is not valid utf-8")?;
@@ -106,14 +108,16 @@ fn read_tree_pretty(
         entry.push(b' ');
         entry.extend(hash);
         entry.push(b'\t');
+        name.pop(); // Remove the trailing null byte
         entry.extend(name);
-        entry.push(b'\n');
 
-        // Append the entry to the buffer
-        // Doing so will also clear the entry buffer
-        buf.append(&mut entry);
+        // Append the entry to the list of entries
+        entries.push(entry);
     }
 
+    // Append the entries to the buffer
+    // joined by a newline character
+    buf.extend(entries.join(&b'\n'));
     Ok(object_size)
 }
 
@@ -208,57 +212,95 @@ mod tests {
 
     use crate::commands::cat_file::{CatFileArgs, CatFileFlags};
     use crate::commands::CommandArgs;
-    use crate::utils::env;
     use crate::utils::test::{TempEnv, TempPwd};
+    use crate::utils::{env, hex};
 
-    const OBJECT_CONTENT: &str = "Hello, World!";
-    const OBJECT_HASH: &str = "b45ef6fec89518d314f546fd6c3025367b721684";
-    const OBJECT_HASH_UNKNOWN_TYPE: &str = "de7a5d7e25b0b0700efda74301e3afddf222f2da"; // type: unknown
-    const OBJECT_HASH_INVALID_SIZE: &str = "5eacd92a2d45548f23ddee14fc6401a141f2dc9f"; // size: 0
-    const OBJECT_TYPE: &str = "blob";
+    const BLOB_CONTENT: &str = "Hello, World!";
+    const OBJECT_HASH: &str = "2f22503f99671604495c84465f0113d002193369";
+    const OBJECT_PATH: &str = ".git/objects/2f/22503f99671604495c84465f0113d002193369";
 
-    /// Get the compressed representation of [`OBJECT_CONTENT`] and its header
-    fn compress_object() -> Vec<u8> {
+    /// Get the compressed representation of [`BLOB_CONTENT`] and its header
+    ///
+    /// # Arguments
+    ///
+    /// * `valid_type` - Whether the object type should be valid (`blob`)
+    /// * `valid_size` - Whether the object size should be valid (size of the content)
+    ///
+    /// # Returns
+    ///
+    /// The compressed representation of the blob object and its header
+    fn compress_blob(valid_type: bool, valid_size: bool) -> Vec<u8> {
         let object = format!(
             "{} {}\0{}",
-            OBJECT_TYPE,
-            OBJECT_CONTENT.len(),
-            OBJECT_CONTENT
+            if valid_type { "blob" } else { "unknown" },
+            if valid_size { BLOB_CONTENT.len() } else { 0 },
+            BLOB_CONTENT
         );
         let mut zlib = ZlibEncoder::new(Vec::new(), Compression::default());
         zlib.write_all(object.as_bytes()).unwrap();
         zlib.finish().unwrap()
     }
 
-    /// Get the compressed representation of [`OBJECT_CONTENT`] with an unknown type in the header
-    fn compress_object_unknown_type() -> Vec<u8> {
-        let object = format!("unknown {}\0{}", OBJECT_CONTENT.len(), OBJECT_CONTENT);
+    /// Get the compressed representation of a tree object and its header
+    ///
+    /// # Arguments
+    ///
+    /// * `object_hash` - The hash of the object to reference
+    /// * `valid_type` - Whether the object type should be valid (`tree`)
+    /// * `valid_size` - Whether the object size should be valid (size of the content)
+    ///
+    /// # Returns
+    ///
+    /// The compressed representation of the tree object and its header
+    fn compress_tree(object_hash: &str, valid_type: bool, valid_size: bool) -> Vec<u8> {
+        let content = tree_content(object_hash, false);
+        let mut object = format!(
+            "{} {}\0",
+            if valid_type { "tree" } else { "unknown" },
+            if valid_size { content.len() } else { 0 }
+        )
+        .into_bytes();
+        object.extend(content);
+
         let mut zlib = ZlibEncoder::new(Vec::new(), Compression::default());
-        zlib.write_all(object.as_bytes()).unwrap();
+        zlib.write_all(&object).unwrap();
         zlib.finish().unwrap()
     }
 
-    /// Get the compressed representation of [`OBJECT_CONTENT`] with an invalid size in the header
-    fn compress_object_invalid_size() -> Vec<u8> {
-        let object = format!("{} 0\0{}", OBJECT_TYPE, OBJECT_CONTENT);
-        let mut zlib = ZlibEncoder::new(Vec::new(), Compression::default());
-        zlib.write_all(object.as_bytes()).unwrap();
-        zlib.finish().unwrap()
+    /// Get the content of a tree object
+    ///
+    /// # Arguments
+    ///
+    /// * `object_hash` - The hash of the object to reference
+    /// * `pretty` - Whether the content should be pretty-printed
+    ///
+    /// # Returns
+    ///
+    /// The content of the tree object
+    fn tree_content(object_hash: &str, pretty: bool) -> Vec<u8> {
+        if pretty {
+            format!("100644 blob {}\tfile.txt", object_hash).into_bytes()
+        } else {
+            let object_hash_binary =
+                hex::decode(object_hash.as_bytes()).expect("failed to convert hex to binary");
+            let mut content = b"100644 file.txt\0".to_vec();
+            content.extend(object_hash_binary);
+            content
+        }
     }
 
     #[test]
-    fn displays_object_content() {
-        // Unset the GIT_DIR and GIT_OBJECT_DIRECTORY environment variables
+    fn displays_non_tree() {
+        // Unset environmental variables to avoid conflicts
         let _git_dir_env = TempEnv::new(env::GIT_DIR, None);
         let _git_object_dir_env = TempEnv::new(env::GIT_OBJECT_DIRECTORY, None);
 
         let temp_pwd = TempPwd::new();
-        let object_path = format!(".git/objects/{}/{}", &OBJECT_HASH[..2], &OBJECT_HASH[2..]);
-        let object_path = temp_pwd.path().join(object_path);
+        let object_path = temp_pwd.path().join(OBJECT_PATH);
 
         // Create the object path and write the hashed content
         fs::create_dir_all(object_path.parent().unwrap()).unwrap();
-        fs::write(&object_path, compress_object()).unwrap();
+        fs::write(&object_path, compress_blob(true, true)).unwrap();
 
         let args = CatFileArgs {
             flags: CatFileFlags {
@@ -275,22 +317,63 @@ mod tests {
         let result = args.run(&mut output);
 
         assert!(result.is_ok());
-        assert_eq!(output, OBJECT_CONTENT.as_bytes());
+        assert_eq!(output, BLOB_CONTENT.as_bytes());
     }
 
     #[test]
-    fn exits_successfully() {
-        // Unset the GIT_DIR and GIT_OBJECT_DIRECTORY environment variables
+    fn displays_tree() {
+        // Unset environmental variables to avoid conflicts
         let _git_dir_env = TempEnv::new(env::GIT_DIR, None);
         let _git_object_dir_env = TempEnv::new(env::GIT_OBJECT_DIRECTORY, None);
 
         let temp_pwd = TempPwd::new();
-        let object_path = format!(".git/objects/{}/{}", &OBJECT_HASH[..2], &OBJECT_HASH[2..]);
-        let object_path = temp_pwd.path().join(object_path);
+        let tree_path = temp_pwd.path().join(OBJECT_PATH);
+        let blob_hash_hex = "01c6a63b7fc32f6f49988a9a12b8d7d199febeab";
+
+        // Create the object path and write the hashed content
+        fs::create_dir_all(tree_path.parent().unwrap()).unwrap();
+        fs::write(&tree_path, compress_tree(blob_hash_hex, true, true)).unwrap();
+
+        let blob_path = temp_pwd
+            .path()
+            .join(".git/objects")
+            .join(&blob_hash_hex[..2])
+            .join(&blob_hash_hex[2..]);
+
+        // Create the object path and write the hashed content
+        fs::create_dir(blob_path.parent().unwrap()).unwrap();
+        fs::write(&blob_path, compress_blob(true, true)).unwrap();
+
+        let args = CatFileArgs {
+            flags: CatFileFlags {
+                show_type: false,
+                size: false,
+                exit_zero: false,
+                pretty_print: true,
+            },
+            allow_unknown_type: false,
+            object_hash: OBJECT_HASH.to_string(),
+        };
+
+        let mut output = Vec::new();
+        let result = args.run(&mut output);
+
+        assert!(result.is_ok());
+        assert_eq!(output, tree_content(blob_hash_hex, true));
+    }
+
+    #[test]
+    fn exits_successfully() {
+        // Unset environmental variables to avoid conflicts
+        let _git_dir_env = TempEnv::new(env::GIT_DIR, None);
+        let _git_object_dir_env = TempEnv::new(env::GIT_OBJECT_DIRECTORY, None);
+
+        let temp_pwd = TempPwd::new();
+        let object_path = temp_pwd.path().join(OBJECT_PATH);
 
         // Create the object path and write the hashed content
         fs::create_dir_all(object_path.parent().unwrap()).unwrap();
-        fs::write(&object_path, compress_object()).unwrap();
+        fs::write(&object_path, compress_blob(true, true)).unwrap();
 
         let args = CatFileArgs {
             flags: CatFileFlags {
@@ -312,17 +395,16 @@ mod tests {
 
     #[test]
     fn displays_object_type() {
-        // Unset the GIT_DIR and GIT_OBJECT_DIRECTORY environment variables
+        // Unset environmental variables to avoid conflicts
         let _git_dir_env = TempEnv::new(env::GIT_DIR, None);
         let _git_object_dir_env = TempEnv::new(env::GIT_OBJECT_DIRECTORY, None);
 
         let temp_pwd = TempPwd::new();
-        let object_path = format!(".git/objects/{}/{}", &OBJECT_HASH[..2], &OBJECT_HASH[2..]);
-        let object_path = temp_pwd.path().join(object_path);
+        let object_path = temp_pwd.path().join(OBJECT_PATH);
 
         // Create the object path and write the hashed content
         fs::create_dir_all(object_path.parent().unwrap()).unwrap();
-        fs::write(&object_path, compress_object()).unwrap();
+        fs::write(&object_path, compress_blob(true, true)).unwrap();
 
         let args = CatFileArgs {
             flags: CatFileFlags {
@@ -339,22 +421,21 @@ mod tests {
         let result = args.run(&mut output);
 
         assert!(result.is_ok());
-        assert_eq!(output, OBJECT_TYPE.as_bytes());
+        assert_eq!(output, b"blob");
     }
 
     #[test]
     fn displays_object_size() {
-        // Unset the GIT_DIR and GIT_OBJECT_DIRECTORY environment variables
+        // Unset environmental variables to avoid conflicts
         let _git_dir_env = TempEnv::new(env::GIT_DIR, None);
         let _git_object_dir_env = TempEnv::new(env::GIT_OBJECT_DIRECTORY, None);
 
         let temp_pwd = TempPwd::new();
-        let object_path = format!(".git/objects/{}/{}", &OBJECT_HASH[..2], &OBJECT_HASH[2..]);
-        let object_path = temp_pwd.path().join(object_path);
+        let object_path = temp_pwd.path().join(OBJECT_PATH);
 
         // Create the object path and write the hashed content
         fs::create_dir_all(object_path.parent().unwrap()).unwrap();
-        fs::write(&object_path, compress_object()).unwrap();
+        fs::write(&object_path, compress_blob(true, true)).unwrap();
 
         let args = CatFileArgs {
             flags: CatFileFlags {
@@ -371,26 +452,21 @@ mod tests {
         let result = args.run(&mut output);
 
         assert!(result.is_ok());
-        assert_eq!(output, OBJECT_CONTENT.len().to_string().as_bytes());
+        assert_eq!(output, BLOB_CONTENT.len().to_string().as_bytes());
     }
 
     #[test]
     fn displays_object_type_with_unknown_type() {
-        // Unset the GIT_DIR and GIT_OBJECT_DIRECTORY environment variables
+        // Unset environmental variables to avoid conflicts
         let _git_dir_env = TempEnv::new(env::GIT_DIR, None);
         let _git_object_dir_env = TempEnv::new(env::GIT_OBJECT_DIRECTORY, None);
 
         let temp_pwd = TempPwd::new();
-        let object_path = format!(
-            ".git/objects/{}/{}",
-            &OBJECT_HASH_UNKNOWN_TYPE[..2],
-            &OBJECT_HASH_UNKNOWN_TYPE[2..]
-        );
-        let object_path = temp_pwd.path().join(object_path);
+        let object_path = temp_pwd.path().join(OBJECT_PATH);
 
         // Create the object path and write the hashed content
         fs::create_dir_all(object_path.parent().unwrap()).unwrap();
-        fs::write(&object_path, compress_object_unknown_type()).unwrap();
+        fs::write(&object_path, compress_blob(false, true)).unwrap();
 
         let args = CatFileArgs {
             flags: CatFileFlags {
@@ -400,7 +476,7 @@ mod tests {
                 pretty_print: false,
             },
             allow_unknown_type: true,
-            object_hash: OBJECT_HASH_UNKNOWN_TYPE.to_string(),
+            object_hash: OBJECT_HASH.to_string(),
         };
 
         let mut output = Vec::new();
@@ -412,21 +488,16 @@ mod tests {
 
     #[test]
     fn displays_object_size_with_unknown_type() {
-        // Unset the GIT_DIR and GIT_OBJECT_DIRECTORY environment variables
+        // Unset environmental variables to avoid conflicts
         let _git_dir_env = TempEnv::new(env::GIT_DIR, None);
         let _git_object_dir_env = TempEnv::new(env::GIT_OBJECT_DIRECTORY, None);
 
         let temp_pwd = TempPwd::new();
-        let object_path = format!(
-            ".git/objects/{}/{}",
-            &OBJECT_HASH_UNKNOWN_TYPE[..2],
-            &OBJECT_HASH_UNKNOWN_TYPE[2..]
-        );
-        let object_path = temp_pwd.path().join(object_path);
+        let object_path = temp_pwd.path().join(OBJECT_PATH);
 
         // Create the object path and write the hashed content
         fs::create_dir_all(object_path.parent().unwrap()).unwrap();
-        fs::write(&object_path, compress_object_unknown_type()).unwrap();
+        fs::write(&object_path, compress_blob(false, true)).unwrap();
 
         let args = CatFileArgs {
             flags: CatFileFlags {
@@ -436,33 +507,28 @@ mod tests {
                 pretty_print: false,
             },
             allow_unknown_type: true,
-            object_hash: OBJECT_HASH_UNKNOWN_TYPE.to_string(),
+            object_hash: OBJECT_HASH.to_string(),
         };
 
         let mut output = Vec::new();
         let result = args.run(&mut output);
 
         assert!(result.is_ok());
-        assert_eq!(output, OBJECT_CONTENT.len().to_string().as_bytes());
+        assert_eq!(output, BLOB_CONTENT.len().to_string().as_bytes());
     }
 
     #[test]
     fn fails_to_display_object_type_with_unknown_type() {
-        // Unset the GIT_DIR and GIT_OBJECT_DIRECTORY environment variables
+        // Unset environmental variables to avoid conflicts
         let _git_dir_env = TempEnv::new(env::GIT_DIR, None);
         let _git_object_dir_env = TempEnv::new(env::GIT_OBJECT_DIRECTORY, None);
 
         let temp_pwd = TempPwd::new();
-        let object_path = format!(
-            ".git/objects/{}/{}",
-            &OBJECT_HASH_UNKNOWN_TYPE[..2],
-            &OBJECT_HASH_UNKNOWN_TYPE[2..]
-        );
-        let object_path = temp_pwd.path().join(object_path);
+        let object_path = temp_pwd.path().join(OBJECT_PATH);
 
         // Create the object path and write the hashed content
         fs::create_dir_all(object_path.parent().unwrap()).unwrap();
-        fs::write(&object_path, compress_object_unknown_type()).unwrap();
+        fs::write(&object_path, compress_blob(false, true)).unwrap();
 
         let args = CatFileArgs {
             flags: CatFileFlags {
@@ -472,32 +538,25 @@ mod tests {
                 pretty_print: false,
             },
             allow_unknown_type: false,
-            object_hash: OBJECT_HASH_UNKNOWN_TYPE.to_string(),
+            object_hash: OBJECT_HASH.to_string(),
         };
 
-        let mut output = Vec::new();
-        let result = args.run(&mut output);
-
+        let result = args.run(&mut Vec::new());
         assert!(result.is_err());
     }
 
     #[test]
     fn fails_to_display_object_size_with_unknown_type() {
-        // Unset the GIT_DIR and GIT_OBJECT_DIRECTORY environment variables
+        // Unset environmental variables to avoid conflicts
         let _git_dir_env = TempEnv::new(env::GIT_DIR, None);
         let _git_object_dir_env = TempEnv::new(env::GIT_OBJECT_DIRECTORY, None);
 
         let temp_pwd = TempPwd::new();
-        let object_path = format!(
-            ".git/objects/{}/{}",
-            &OBJECT_HASH_UNKNOWN_TYPE[..2],
-            &OBJECT_HASH_UNKNOWN_TYPE[2..]
-        );
-        let object_path = temp_pwd.path().join(object_path);
+        let object_path = temp_pwd.path().join(OBJECT_PATH);
 
         // Create the object path and write the hashed content
         fs::create_dir_all(object_path.parent().unwrap()).unwrap();
-        fs::write(&object_path, compress_object_unknown_type()).unwrap();
+        fs::write(&object_path, compress_blob(false, true)).unwrap();
 
         let args = CatFileArgs {
             flags: CatFileFlags {
@@ -507,32 +566,25 @@ mod tests {
                 pretty_print: false,
             },
             allow_unknown_type: false,
-            object_hash: OBJECT_HASH_UNKNOWN_TYPE.to_string(),
+            object_hash: OBJECT_HASH.to_string(),
         };
 
-        let mut output = Vec::new();
-        let result = args.run(&mut output);
-
+        let result = args.run(&mut Vec::new());
         assert!(result.is_err());
     }
 
     #[test]
-    fn fails_to_display_object_content_with_invalid_size() {
-        // Unset the GIT_DIR and GIT_OBJECT_DIRECTORY environment variables
+    fn fails_to_display_non_tree_with_invalid_size() {
+        // Unset environmental variables to avoid conflicts
         let _git_dir_env = TempEnv::new(env::GIT_DIR, None);
         let _git_object_dir_env = TempEnv::new(env::GIT_OBJECT_DIRECTORY, None);
 
         let temp_pwd = TempPwd::new();
-        let object_path = format!(
-            ".git/objects/{}/{}",
-            &OBJECT_HASH_INVALID_SIZE[..2],
-            &OBJECT_HASH_INVALID_SIZE[2..]
-        );
-        let object_path = temp_pwd.path().join(object_path);
+        let object_path = temp_pwd.path().join(OBJECT_PATH);
 
         // Create the object path and write the hashed content
         fs::create_dir_all(object_path.parent().unwrap()).unwrap();
-        fs::write(&object_path, compress_object_invalid_size()).unwrap();
+        fs::write(&object_path, compress_blob(true, false)).unwrap();
 
         let args = CatFileArgs {
             flags: CatFileFlags {
@@ -542,32 +594,36 @@ mod tests {
                 pretty_print: true,
             },
             allow_unknown_type: false,
-            object_hash: OBJECT_HASH_INVALID_SIZE.to_string(),
+            object_hash: OBJECT_HASH.to_string(),
         };
 
-        let mut output = Vec::new();
-        let result = args.run(&mut output);
-
+        let result = args.run(&mut Vec::new());
         assert!(result.is_err());
     }
 
     #[test]
-    fn fails_to_display_object_content_with_unknown_type() {
-        // Unset the GIT_DIR and GIT_OBJECT_DIRECTORY environment variables
+    fn fails_to_display_tree_with_invalid_size() {
+        // Unset environmental variables to avoid conflicts
         let _git_dir_env = TempEnv::new(env::GIT_DIR, None);
         let _git_object_dir_env = TempEnv::new(env::GIT_OBJECT_DIRECTORY, None);
 
         let temp_pwd = TempPwd::new();
-        let object_path = format!(
-            ".git/objects/{}/{}",
-            &OBJECT_HASH_INVALID_SIZE[..2],
-            &OBJECT_HASH_INVALID_SIZE[2..]
-        );
-        let object_path = temp_pwd.path().join(object_path);
+        let tree_path = temp_pwd.path().join(OBJECT_PATH);
+        let blob_hash_hex = "01c6a63b7fc32f6f49988a9a12b8d7d199febeab";
 
         // Create the object path and write the hashed content
-        fs::create_dir_all(object_path.parent().unwrap()).unwrap();
-        fs::write(&object_path, compress_object_invalid_size()).unwrap();
+        fs::create_dir_all(tree_path.parent().unwrap()).unwrap();
+        fs::write(&tree_path, compress_tree(blob_hash_hex, true, false)).unwrap();
+
+        let blob_path = temp_pwd
+            .path()
+            .join(".git/objects")
+            .join(&blob_hash_hex[..2])
+            .join(&blob_hash_hex[2..]);
+
+        // Create the object path and write the hashed content
+        fs::create_dir(blob_path.parent().unwrap()).unwrap();
+        fs::write(&blob_path, compress_blob(true, true)).unwrap();
 
         let args = CatFileArgs {
             flags: CatFileFlags {
@@ -577,68 +633,92 @@ mod tests {
                 pretty_print: true,
             },
             allow_unknown_type: false,
-            object_hash: OBJECT_HASH_INVALID_SIZE.to_string(),
+            object_hash: OBJECT_HASH.to_string(),
         };
 
-        let mut output = Vec::new();
-        let result = args.run(&mut output);
-
+        let result = args.run(&mut Vec::new());
         assert!(result.is_err());
     }
 
     #[test]
-    fn displays_object_type_with_invalid_size() {
-        // Unset the GIT_DIR and GIT_OBJECT_DIRECTORY environment variables
+    fn fails_to_display_non_tree_with_unknown_type() {
+        // Unset environmental variables to avoid conflicts
         let _git_dir_env = TempEnv::new(env::GIT_DIR, None);
         let _git_object_dir_env = TempEnv::new(env::GIT_OBJECT_DIRECTORY, None);
 
         let temp_pwd = TempPwd::new();
-        let object_path = format!(
-            ".git/objects/{}/{}",
-            &OBJECT_HASH_INVALID_SIZE[..2],
-            &OBJECT_HASH_INVALID_SIZE[2..]
-        );
-        let object_path = temp_pwd.path().join(object_path);
+        let object_path = temp_pwd.path().join(OBJECT_PATH);
 
         // Create the object path and write the hashed content
         fs::create_dir_all(object_path.parent().unwrap()).unwrap();
-        fs::write(&object_path, compress_object_invalid_size()).unwrap();
+        fs::write(&object_path, compress_blob(true, false)).unwrap();
 
         let args = CatFileArgs {
             flags: CatFileFlags {
-                show_type: true,
+                show_type: false,
                 size: false,
                 exit_zero: false,
-                pretty_print: false,
+                pretty_print: true,
             },
             allow_unknown_type: false,
-            object_hash: OBJECT_HASH_INVALID_SIZE.to_string(),
+            object_hash: OBJECT_HASH.to_string(),
         };
 
-        let mut output = Vec::new();
-        let result = args.run(&mut output);
+        let result = args.run(&mut Vec::new());
+        assert!(result.is_err());
+    }
 
-        assert!(result.is_ok());
-        assert_eq!(output, OBJECT_TYPE.as_bytes());
+    #[test]
+    fn fails_to_display_tree_with_unknown_type() {
+        // Unset environmental variables to avoid conflicts
+        let _git_dir_env = TempEnv::new(env::GIT_DIR, None);
+        let _git_object_dir_env = TempEnv::new(env::GIT_OBJECT_DIRECTORY, None);
+
+        let temp_pwd = TempPwd::new();
+        let tree_path = temp_pwd.path().join(OBJECT_PATH);
+        let blob_hash_hex = "01c6a63b7fc32f6f49988a9a12b8d7d199febeab";
+
+        // Create the object path and write the hashed content
+        fs::create_dir_all(tree_path.parent().unwrap()).unwrap();
+        fs::write(&tree_path, compress_tree(blob_hash_hex, false, true)).unwrap();
+
+        let blob_path = temp_pwd
+            .path()
+            .join(".git/objects")
+            .join(&blob_hash_hex[..2])
+            .join(&blob_hash_hex[2..]);
+
+        // Create the object path and write the hashed content
+        fs::create_dir(blob_path.parent().unwrap()).unwrap();
+        fs::write(&blob_path, compress_blob(true, true)).unwrap();
+
+        let args = CatFileArgs {
+            flags: CatFileFlags {
+                show_type: false,
+                size: false,
+                exit_zero: false,
+                pretty_print: true,
+            },
+            allow_unknown_type: false,
+            object_hash: OBJECT_HASH.to_string(),
+        };
+
+        let result = args.run(&mut Vec::new());
+        assert!(result.is_err());
     }
 
     #[test]
     fn displays_object_size_with_invalid_size() {
-        // Unset the GIT_DIR and GIT_OBJECT_DIRECTORY environment variables
+        // Unset environmental variables to avoid conflicts
         let _git_dir_env = TempEnv::new(env::GIT_DIR, None);
         let _git_object_dir_env = TempEnv::new(env::GIT_OBJECT_DIRECTORY, None);
 
         let temp_pwd = TempPwd::new();
-        let object_path = format!(
-            ".git/objects/{}/{}",
-            &OBJECT_HASH_INVALID_SIZE[..2],
-            &OBJECT_HASH_INVALID_SIZE[2..]
-        );
-        let object_path = temp_pwd.path().join(object_path);
+        let object_path = temp_pwd.path().join(OBJECT_PATH);
 
         // Create the object path and write the hashed content
         fs::create_dir_all(object_path.parent().unwrap()).unwrap();
-        fs::write(&object_path, compress_object_invalid_size()).unwrap();
+        fs::write(&object_path, compress_blob(true, false)).unwrap();
 
         let args = CatFileArgs {
             flags: CatFileFlags {
@@ -648,7 +728,7 @@ mod tests {
                 pretty_print: false,
             },
             allow_unknown_type: false,
-            object_hash: OBJECT_HASH_INVALID_SIZE.to_string(),
+            object_hash: OBJECT_HASH.to_string(),
         };
 
         let mut output = Vec::new();
@@ -659,8 +739,8 @@ mod tests {
     }
 
     #[test]
-    fn read_object_non_existent_hash() {
-        // Unset the GIT_DIR and GIT_OBJECT_DIRECTORY environment variables
+    fn fails_to_display_object_with_invalid_hash() {
+        // Unset environmental variables to avoid conflicts
         let _git_dir_env = TempEnv::new(env::GIT_DIR, None);
         let _git_object_dir_env = TempEnv::new(env::GIT_OBJECT_DIRECTORY, None);
         let _temp_pwd = TempPwd::new();
@@ -681,8 +761,8 @@ mod tests {
     }
 
     #[test]
-    fn read_header_non_existent_hash() {
-        // Unset the GIT_DIR and GIT_OBJECT_DIRECTORY environment variables
+    fn fails_to_display_header_with_invalid_hash() {
+        // Unset environmental variables to avoid conflicts
         let _git_dir_env = TempEnv::new(env::GIT_DIR, None);
         let _git_object_dir_env = TempEnv::new(env::GIT_OBJECT_DIRECTORY, None);
         let _temp_pwd = TempPwd::new();

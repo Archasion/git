@@ -4,14 +4,40 @@ use std::path::PathBuf;
 use anyhow::Context;
 use clap::ValueEnum;
 
-const HEX_CHARS: &[u8] = b"0123456789abcdef";
+pub(crate) mod hex {
+    use anyhow::Context;
 
-/// Convert a binary slice to a hex slice.
-pub(crate) fn binary_to_hex_bytes(bytes: &mut Vec<u8>) {
-    for _ in 0..bytes.len() {
-        let byte = bytes.remove(0);
-        bytes.push(HEX_CHARS[(byte >> 4) as usize]);
-        bytes.push(HEX_CHARS[(byte & 0xf) as usize]);
+    const HEX_CHARS: &[u8] = b"0123456789abcdef";
+
+    /// Convert a binary slice to a hex slice.
+    pub(crate) fn encode_in_place(bytes: &mut Vec<u8>) {
+        for _ in 0..bytes.len() {
+            let byte = bytes.remove(0);
+            bytes.push(HEX_CHARS[(byte >> 4) as usize]);
+            bytes.push(HEX_CHARS[(byte & 0xf) as usize]);
+        }
+    }
+
+    /// Convert a hex slice to a binary slice.
+    #[allow(unused)]
+    pub(crate) fn decode(hex: &[u8]) -> anyhow::Result<Vec<u8>> {
+        let mut bytes = Vec::with_capacity(hex.len() / 2);
+
+        if hex.len() & 1 != 0 {
+            anyhow::bail!("invalid hex string");
+        }
+
+        for chunk in hex.chunks(2) {
+            let high = (chunk[0] as char)
+                .to_digit(16)
+                .context("invalid hex character")?;
+            let low = (chunk[1] as char)
+                .to_digit(16)
+                .context("invalid hex character")?;
+            bytes.push(((high << 4) | low) as u8);
+        }
+
+        Ok(bytes)
     }
 }
 
@@ -210,7 +236,7 @@ impl TryFrom<&[u8]> for ObjectType {
 pub(crate) mod test {
     use std::path::{Path, PathBuf};
 
-    use super::binary_to_hex_bytes;
+    use super::hex;
 
     /// A temporary environment for testing.
     /// Changes the environment variable and restores it on drop.
@@ -313,10 +339,18 @@ pub(crate) mod test {
     }
 
     #[test]
-    fn valid_binary_to_hex_bytes() {
+    fn hex_encode_in_place() {
         let mut binary = vec![0x00, 0x01, 0x02, 0x03];
-        binary_to_hex_bytes(&mut binary);
+        hex::encode_in_place(&mut binary);
         assert_eq!(binary, b"00010203");
+    }
+
+    #[test]
+    fn hex_decode() {
+        let hex = b"00010203";
+        let binary = hex::decode(hex);
+        assert!(binary.is_ok());
+        assert_eq!(binary.unwrap(), vec![0x00, 0x01, 0x02, 0x03]);
     }
 }
 
