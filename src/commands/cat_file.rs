@@ -179,7 +179,7 @@ pub(crate) struct CatFileArgs {
     #[command(flatten)]
     flags: CatFileFlags,
     /// allow -s and -t to work with broken/corrupt objects
-    #[arg(long, requires = "meta")]
+    #[arg(long, requires = "header")]
     allow_unknown_type: bool,
     /// the object to display
     #[arg(name = "object")]
@@ -190,10 +190,10 @@ pub(crate) struct CatFileArgs {
 #[group(id = "flags", required = true)]
 struct CatFileFlags {
     /// show object type
-    #[arg(short = 't', group = "meta")]
+    #[arg(short = 't', group = "header")]
     show_type: bool,
     /// show object size
-    #[arg(short, group = "meta")]
+    #[arg(short, group = "header")]
     size: bool,
     /// check if <object> exists
     #[arg(short)]
