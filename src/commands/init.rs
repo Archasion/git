@@ -11,42 +11,77 @@ impl CommandArgs for InitArgs {
     where
         W: Write,
     {
-        // Initializes a new git repository in the specified directory.
-        let git_dir = if self.bare {
-            if let Some(directory) = self.directory {
-                directory
-            } else {
-                let directory = std::env::current_dir()?;
-                let git_dir = std::env::var(env::GIT_DIR).unwrap_or_else(|_| ".".to_string());
-                directory.join(git_dir)
-            }
-        } else {
-            let directory = self.directory.unwrap_or_else(|| ".".into());
-            let git_dir = std::env::var(env::GIT_DIR).unwrap_or_else(|_| ".git".to_string());
-            directory.join(git_dir)
-        };
+        let init_path = get_init_path(self.directory, self.bare)?;
 
         // The directory where git objects are stored.
-        let git_object_dir = std::env::var(env::GIT_OBJECT_DIRECTORY)
-            .map(|object_dir| git_dir.join(object_dir))
-            .unwrap_or_else(|_| git_dir.join("objects"));
+        // GIT_OBJECT_DIRECTORY takes precedence over the default 'objects' directory.
+        let object_dir = std::env::var(env::GIT_OBJECT_DIRECTORY)
+            .map(|object_dir| init_path.join(object_dir))
+            .unwrap_or_else(|_| init_path.join("objects"));
 
         // Create the git directory and its subdirectories.
-        std::fs::create_dir_all(&git_dir)?;
-        std::fs::create_dir(git_object_dir)?;
-        std::fs::create_dir(git_dir.join("refs"))?;
+        std::fs::create_dir_all(object_dir)?;
+        std::fs::create_dir(init_path.join("refs"))?;
 
-        let head = format!("ref: refs/heads/{}\n", self.initial_branch);
-        std::fs::write(git_dir.join("HEAD"), head)?;
+        // Create the HEAD file with the initial branch.
+        std::fs::write(
+            init_path.join("HEAD"),
+            get_head_ref_content(&self.initial_branch),
+        )?;
 
+        // Only print the output if the `--quiet` flag is not passed.
         if !self.quiet {
             let output = format!(
                 "Initialized empty Git repository in {}",
-                git_dir.canonicalize()?.to_str().unwrap()
+                init_path.canonicalize()?.to_str().unwrap()
             );
             writer.write_all(output.as_bytes())?;
         }
+
         Ok(())
+    }
+}
+
+/// Returns the content of the HEAD file.
+fn get_head_ref_content(initial_branch: &str) -> String {
+    format!("ref: refs/heads/{}\n", initial_branch)
+}
+
+/// Returns the path to initialize the git repository.
+///
+/// - If the target directory is not specified, the current directory is used.
+/// - If the `--bare` flag is passed, the target directory is used as the .git directory (unless GIT_DIR is set).
+/// - If the `--bare` flag is not passed, a .git directory is created in the target directory.
+///
+/// > Note: The `GIT_DIR` environment variable takes precedence over the default `.git` directory.
+///
+/// # Arguments
+///
+/// * `target_dir` - The directory to create the repository in.
+/// * `bare` - Create a bare repository.
+///
+/// # Returns
+///
+/// The path to initialize the git repository.
+fn get_init_path(target_dir: Option<PathBuf>, bare: bool) -> anyhow::Result<PathBuf> {
+    // Creates a .git directory in the target directory.
+    if !bare {
+        // If the target directory is not specified, use the current directory.
+        let target_dir = target_dir.unwrap_or_else(|| ".".into());
+        // Prioritize the GIT_DIR environment variable over '.git'
+        let git_dir = std::env::var(env::GIT_DIR).unwrap_or_else(|_| ".git".to_string());
+        return Ok(target_dir.join(git_dir));
+    }
+
+    // Creates a bare repository in the target directory.
+    // A bare repository uses the target directory as the .git directory.
+    if let Some(target_dir) = target_dir {
+        Ok(target_dir)
+    } else {
+        // If the target directory is not specified, use the path defined
+        // in GIT_DIR or the current directory.
+        let target_dir = std::env::var(env::GIT_DIR).unwrap_or_else(|_| ".".to_string());
+        Ok(target_dir.into())
     }
 }
 
