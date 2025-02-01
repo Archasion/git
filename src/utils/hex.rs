@@ -12,7 +12,7 @@ pub(crate) fn encode_in_place(bytes: &mut Vec<u8>) {
 }
 
 /// Convert a hex slice to a binary slice.
-#[allow(unused)]
+#[allow(dead_code)]
 pub(crate) fn decode(hex: &[u8]) -> anyhow::Result<Vec<u8>> {
     let mut bytes = Vec::with_capacity(hex.len() / 2);
 

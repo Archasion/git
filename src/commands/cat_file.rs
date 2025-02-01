@@ -292,9 +292,7 @@ mod tests {
 
     #[test]
     fn displays_non_tree() {
-        // Unset environmental variables to avoid conflicts
-        let _git_dir_env = TempEnv::new(env::GIT_DIR, None);
-        let _git_object_dir_env = TempEnv::new(env::GIT_OBJECT_DIRECTORY, None);
+        let _env = TempEnv::from([(env::GIT_DIR, None), (env::GIT_OBJECT_DIRECTORY, None)]);
 
         let temp_pwd = TempPwd::new();
         let object_path = temp_pwd.path().join(OBJECT_PATH);
@@ -323,9 +321,7 @@ mod tests {
 
     #[test]
     fn displays_tree() {
-        // Unset environmental variables to avoid conflicts
-        let _git_dir_env = TempEnv::new(env::GIT_DIR, None);
-        let _git_object_dir_env = TempEnv::new(env::GIT_OBJECT_DIRECTORY, None);
+        let _env = TempEnv::from([(env::GIT_DIR, None), (env::GIT_OBJECT_DIRECTORY, None)]);
 
         let temp_pwd = TempPwd::new();
         let tree_path = temp_pwd.path().join(OBJECT_PATH);
@@ -365,9 +361,7 @@ mod tests {
 
     #[test]
     fn exits_successfully() {
-        // Unset environmental variables to avoid conflicts
-        let _git_dir_env = TempEnv::new(env::GIT_DIR, None);
-        let _git_object_dir_env = TempEnv::new(env::GIT_OBJECT_DIRECTORY, None);
+        let _env = TempEnv::from([(env::GIT_DIR, None), (env::GIT_OBJECT_DIRECTORY, None)]);
 
         let temp_pwd = TempPwd::new();
         let object_path = temp_pwd.path().join(OBJECT_PATH);
@@ -396,9 +390,7 @@ mod tests {
 
     #[test]
     fn displays_object_type() {
-        // Unset environmental variables to avoid conflicts
-        let _git_dir_env = TempEnv::new(env::GIT_DIR, None);
-        let _git_object_dir_env = TempEnv::new(env::GIT_OBJECT_DIRECTORY, None);
+        let _env = TempEnv::from([(env::GIT_DIR, None), (env::GIT_OBJECT_DIRECTORY, None)]);
 
         let temp_pwd = TempPwd::new();
         let object_path = temp_pwd.path().join(OBJECT_PATH);
@@ -427,9 +419,7 @@ mod tests {
 
     #[test]
     fn displays_object_size() {
-        // Unset environmental variables to avoid conflicts
-        let _git_dir_env = TempEnv::new(env::GIT_DIR, None);
-        let _git_object_dir_env = TempEnv::new(env::GIT_OBJECT_DIRECTORY, None);
+        let _env = TempEnv::from([(env::GIT_DIR, None), (env::GIT_OBJECT_DIRECTORY, None)]);
 
         let temp_pwd = TempPwd::new();
         let object_path = temp_pwd.path().join(OBJECT_PATH);
@@ -458,9 +448,7 @@ mod tests {
 
     #[test]
     fn displays_object_type_with_unknown_type() {
-        // Unset environmental variables to avoid conflicts
-        let _git_dir_env = TempEnv::new(env::GIT_DIR, None);
-        let _git_object_dir_env = TempEnv::new(env::GIT_OBJECT_DIRECTORY, None);
+        let _env = TempEnv::from([(env::GIT_DIR, None), (env::GIT_OBJECT_DIRECTORY, None)]);
 
         let temp_pwd = TempPwd::new();
         let object_path = temp_pwd.path().join(OBJECT_PATH);
@@ -489,9 +477,7 @@ mod tests {
 
     #[test]
     fn displays_object_size_with_unknown_type() {
-        // Unset environmental variables to avoid conflicts
-        let _git_dir_env = TempEnv::new(env::GIT_DIR, None);
-        let _git_object_dir_env = TempEnv::new(env::GIT_OBJECT_DIRECTORY, None);
+        let _env = TempEnv::from([(env::GIT_DIR, None), (env::GIT_OBJECT_DIRECTORY, None)]);
 
         let temp_pwd = TempPwd::new();
         let object_path = temp_pwd.path().join(OBJECT_PATH);
@@ -520,9 +506,7 @@ mod tests {
 
     #[test]
     fn fails_to_display_object_type_with_unknown_type() {
-        // Unset environmental variables to avoid conflicts
-        let _git_dir_env = TempEnv::new(env::GIT_DIR, None);
-        let _git_object_dir_env = TempEnv::new(env::GIT_OBJECT_DIRECTORY, None);
+        let _env = TempEnv::from([(env::GIT_DIR, None), (env::GIT_OBJECT_DIRECTORY, None)]);
 
         let temp_pwd = TempPwd::new();
         let object_path = temp_pwd.path().join(OBJECT_PATH);
@@ -548,9 +532,7 @@ mod tests {
 
     #[test]
     fn fails_to_display_object_size_with_unknown_type() {
-        // Unset environmental variables to avoid conflicts
-        let _git_dir_env = TempEnv::new(env::GIT_DIR, None);
-        let _git_object_dir_env = TempEnv::new(env::GIT_OBJECT_DIRECTORY, None);
+        let _env = TempEnv::from([(env::GIT_DIR, None), (env::GIT_OBJECT_DIRECTORY, None)]);
 
         let temp_pwd = TempPwd::new();
         let object_path = temp_pwd.path().join(OBJECT_PATH);
@@ -576,9 +558,7 @@ mod tests {
 
     #[test]
     fn fails_to_display_non_tree_with_invalid_size() {
-        // Unset environmental variables to avoid conflicts
-        let _git_dir_env = TempEnv::new(env::GIT_DIR, None);
-        let _git_object_dir_env = TempEnv::new(env::GIT_OBJECT_DIRECTORY, None);
+        let _env = TempEnv::from([(env::GIT_DIR, None), (env::GIT_OBJECT_DIRECTORY, None)]);
 
         let temp_pwd = TempPwd::new();
         let object_path = temp_pwd.path().join(OBJECT_PATH);
@@ -604,9 +584,7 @@ mod tests {
 
     #[test]
     fn fails_to_display_tree_with_invalid_size() {
-        // Unset environmental variables to avoid conflicts
-        let _git_dir_env = TempEnv::new(env::GIT_DIR, None);
-        let _git_object_dir_env = TempEnv::new(env::GIT_OBJECT_DIRECTORY, None);
+        let _env = TempEnv::from([(env::GIT_DIR, None), (env::GIT_OBJECT_DIRECTORY, None)]);
 
         let temp_pwd = TempPwd::new();
         let tree_path = temp_pwd.path().join(OBJECT_PATH);
@@ -643,9 +621,7 @@ mod tests {
 
     #[test]
     fn fails_to_display_non_tree_with_unknown_type() {
-        // Unset environmental variables to avoid conflicts
-        let _git_dir_env = TempEnv::new(env::GIT_DIR, None);
-        let _git_object_dir_env = TempEnv::new(env::GIT_OBJECT_DIRECTORY, None);
+        let _env = TempEnv::from([(env::GIT_DIR, None), (env::GIT_OBJECT_DIRECTORY, None)]);
 
         let temp_pwd = TempPwd::new();
         let object_path = temp_pwd.path().join(OBJECT_PATH);
@@ -671,9 +647,7 @@ mod tests {
 
     #[test]
     fn fails_to_display_tree_with_unknown_type() {
-        // Unset environmental variables to avoid conflicts
-        let _git_dir_env = TempEnv::new(env::GIT_DIR, None);
-        let _git_object_dir_env = TempEnv::new(env::GIT_OBJECT_DIRECTORY, None);
+        let _env = TempEnv::from([(env::GIT_DIR, None), (env::GIT_OBJECT_DIRECTORY, None)]);
 
         let temp_pwd = TempPwd::new();
         let tree_path = temp_pwd.path().join(OBJECT_PATH);
@@ -710,9 +684,7 @@ mod tests {
 
     #[test]
     fn displays_object_size_with_invalid_size() {
-        // Unset environmental variables to avoid conflicts
-        let _git_dir_env = TempEnv::new(env::GIT_DIR, None);
-        let _git_object_dir_env = TempEnv::new(env::GIT_OBJECT_DIRECTORY, None);
+        let _env = TempEnv::from([(env::GIT_DIR, None), (env::GIT_OBJECT_DIRECTORY, None)]);
 
         let temp_pwd = TempPwd::new();
         let object_path = temp_pwd.path().join(OBJECT_PATH);
@@ -741,9 +713,7 @@ mod tests {
 
     #[test]
     fn fails_to_display_object_with_invalid_hash() {
-        // Unset environmental variables to avoid conflicts
-        let _git_dir_env = TempEnv::new(env::GIT_DIR, None);
-        let _git_object_dir_env = TempEnv::new(env::GIT_OBJECT_DIRECTORY, None);
+        let _env = TempEnv::from([(env::GIT_DIR, None), (env::GIT_OBJECT_DIRECTORY, None)]);
         let _temp_pwd = TempPwd::new();
 
         let args = CatFileArgs {
@@ -763,9 +733,7 @@ mod tests {
 
     #[test]
     fn fails_to_display_header_with_invalid_hash() {
-        // Unset environmental variables to avoid conflicts
-        let _git_dir_env = TempEnv::new(env::GIT_DIR, None);
-        let _git_object_dir_env = TempEnv::new(env::GIT_OBJECT_DIRECTORY, None);
+        let _env = TempEnv::from([(env::GIT_DIR, None), (env::GIT_OBJECT_DIRECTORY, None)]);
         let _temp_pwd = TempPwd::new();
 
         let args = CatFileArgs {

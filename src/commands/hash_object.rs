@@ -114,11 +114,8 @@ mod tests {
 
     #[test]
     fn hashes_blob_and_displays_hash() {
-        // Unset environmental variables for testing
-        let _git_dir_env = TempEnv::new(env::GIT_DIR, None);
-        let _git_object_dir_env = TempEnv::new(env::GIT_OBJECT_DIRECTORY, None);
+        let _env = TempEnv::from([(env::GIT_DIR, None), (env::GIT_OBJECT_DIRECTORY, None)]);
 
-        // Create a temporary file with some content.
         let temp_pwd = TempPwd::new();
         let file_path = temp_pwd.path().join(FILE_NAME);
         fs::write(&file_path, OBJECT_CONTENT).unwrap();
@@ -138,15 +135,12 @@ mod tests {
 
     #[test]
     fn writes_blob_to_object_database() {
-        // Unset environmental variables for testing
-        let _git_dir_env = TempEnv::new(env::GIT_DIR, None);
-        let _git_object_dir_env = TempEnv::new(env::GIT_OBJECT_DIRECTORY, None);
+        let _env = TempEnv::from([(env::GIT_DIR, None), (env::GIT_OBJECT_DIRECTORY, None)]);
 
-        // Create a temporary file with some content.
         let temp_pwd = TempPwd::new();
         let file_path = temp_pwd.path().join(FILE_NAME);
-        fs::write(&file_path, OBJECT_CONTENT).unwrap();
 
+        fs::write(&file_path, OBJECT_CONTENT).unwrap();
         // Create the .git directory.
         fs::create_dir_all(temp_pwd.path().join(".git/objects")).unwrap();
 
@@ -171,11 +165,7 @@ mod tests {
 
     #[test]
     fn fails_on_nonexistent_file() {
-        // Unset environmental variables for testing
-        let _git_dir_env = TempEnv::new(env::GIT_DIR, None);
-        let _git_object_dir_env = TempEnv::new(env::GIT_OBJECT_DIRECTORY, None);
-
-        // Create a temporary directory for testing.
+        let _env = TempEnv::from([(env::GIT_DIR, None), (env::GIT_OBJECT_DIRECTORY, None)]);
         let _temp_pwd = TempPwd::new();
 
         let args = HashObjectArgs {
@@ -190,11 +180,8 @@ mod tests {
 
     #[test]
     fn write_blob_creates_object_database() {
-        // Unset environmental variables for testing
-        let _git_dir_env = TempEnv::new(env::GIT_DIR, None);
-        let _git_object_dir_env = TempEnv::new(env::GIT_OBJECT_DIRECTORY, None);
+        let _env = TempEnv::from([(env::GIT_DIR, None), (env::GIT_OBJECT_DIRECTORY, None)]);
 
-        // Create a temporary directory for testing.
         let temp_pwd = TempPwd::new();
         let blob = format!("blob {}\0{}", OBJECT_CONTENT.len(), OBJECT_CONTENT);
         // Create the .git directory.

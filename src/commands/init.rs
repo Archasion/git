@@ -117,8 +117,7 @@ mod tests {
 
     #[test]
     fn inits_repo() {
-        let _git_dir_env = TempEnv::new(env::GIT_DIR, None);
-        let _git_object_dir_env = TempEnv::new(env::GIT_OBJECT_DIRECTORY, None);
+        let _env = TempEnv::from([(env::GIT_DIR, None), (env::GIT_OBJECT_DIRECTORY, None)]);
 
         let temp_pwd = TempPwd::new();
         let git_dir = temp_pwd.path().join(".git");
@@ -142,8 +141,7 @@ mod tests {
 
     #[test]
     fn inits_bare_repo() {
-        let _git_dir_env = TempEnv::new(env::GIT_DIR, None);
-        let _git_object_dir_env = TempEnv::new(env::GIT_OBJECT_DIRECTORY, None);
+        let _env = TempEnv::from([(env::GIT_DIR, None), (env::GIT_OBJECT_DIRECTORY, None)]);
 
         let temp_pwd = TempPwd::new();
         let args = InitArgs {
@@ -165,8 +163,7 @@ mod tests {
 
     #[test]
     fn inits_repo_with_branch() {
-        let _git_dir_env = TempEnv::new(env::GIT_DIR, None);
-        let _git_object_dir_env = TempEnv::new(env::GIT_OBJECT_DIRECTORY, None);
+        let _env = TempEnv::from([(env::GIT_DIR, None), (env::GIT_OBJECT_DIRECTORY, None)]);
 
         let temp_pwd = TempPwd::new();
         let git_dir = temp_pwd.path().join(".git");
@@ -189,8 +186,10 @@ mod tests {
 
     #[test]
     fn inits_repo_with_custom_git_dir() {
-        let _git_dir_env = TempEnv::new(env::GIT_DIR, Some(CUSTOM_GIT_DIR));
-        let _git_object_dir_env = TempEnv::new(env::GIT_OBJECT_DIRECTORY, None);
+        let _env = TempEnv::from([
+            (env::GIT_DIR, Some(CUSTOM_GIT_DIR)),
+            (env::GIT_OBJECT_DIRECTORY, None),
+        ]);
 
         let temp_pwd = TempPwd::new();
         let git_dir = temp_pwd.path().join(CUSTOM_GIT_DIR);
@@ -214,8 +213,10 @@ mod tests {
 
     #[test]
     fn inits_repo_with_custom_git_object_dir() {
-        let _git_dir_env = TempEnv::new(env::GIT_DIR, None);
-        let _git_object_dir_env = TempEnv::new(env::GIT_OBJECT_DIRECTORY, Some(CUSTOM_OBJECT_DIR));
+        let _env = TempEnv::from([
+            (env::GIT_DIR, None),
+            (env::GIT_OBJECT_DIRECTORY, Some(CUSTOM_OBJECT_DIR)),
+        ]);
 
         let temp_pwd = TempPwd::new();
         let git_dir = temp_pwd.path().join(".git");
@@ -234,8 +235,7 @@ mod tests {
 
     #[test]
     fn fail_on_invalid_init_path() {
-        let _git_dir_env = TempEnv::new(env::GIT_DIR, None);
-        let _git_object_dir_env = TempEnv::new(env::GIT_OBJECT_DIRECTORY, None);
+        let _env = TempEnv::from([(env::GIT_DIR, None), (env::GIT_OBJECT_DIRECTORY, None)]);
 
         let args = InitArgs {
             directory: Some(PathBuf::from("/invalid/directory")),
