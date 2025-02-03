@@ -148,7 +148,7 @@ fn read_head(git_dir: &Path, refs: &mut BTreeMap<PathBuf, [u8; 40]>) -> anyhow::
         return Ok(());
     }
 
-    let mut head = File::open(head_path)?;
+    let mut head = File::open(git_dir.join(head_path))?;
     let mut hash = [0; 40];
     head.read_exact(&mut hash)?;
     refs.insert(PathBuf::from("HEAD"), hash);
