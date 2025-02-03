@@ -25,7 +25,7 @@ impl CommandArgs for InitArgs {
 
         // Create the main HEAD file.
         std::fs::write(
-            init_path.join("heads").join(&self.initial_branch),
+            init_path.join("HEAD"),
             get_head_ref_content(&self.initial_branch),
         )?;
 
