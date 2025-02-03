@@ -23,9 +23,9 @@ impl CommandArgs for InitArgs {
         std::fs::create_dir_all(object_dir)?;
         std::fs::create_dir(init_path.join("refs"))?;
 
-        // Create the HEAD file with the initial branch.
+        // Create the main HEAD file.
         std::fs::write(
-            init_path.join("HEAD"),
+            init_path.join("heads").join(&self.initial_branch),
             get_head_ref_content(&self.initial_branch),
         )?;
 
