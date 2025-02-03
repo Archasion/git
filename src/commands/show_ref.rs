@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 use std::fs::File;
-use std::io::{Read, Write};
-use std::path::PathBuf;
+use std::io::{Read, Seek, SeekFrom, Write};
+use std::path::{Path, PathBuf};
 
 use anyhow::Context;
 use clap::Args;
@@ -21,6 +21,11 @@ impl CommandArgs for ShowRefArgs {
         // the entries are stored as a key-value pair of the path and the hash
         let mut refs = BTreeMap::<PathBuf, [u8; 40]>::new();
         read_refs(&git_dir, ref_dir, &mut refs)?;
+
+        if self.head {
+            let hash = get_head_hash(&git_dir, &refs)?;
+            refs.insert(PathBuf::from("HEAD"), hash);
+        }
 
         let refs = refs
             .into_iter()
@@ -48,7 +53,7 @@ impl CommandArgs for ShowRefArgs {
 /// * `ref_dir` - The path to the directory containing the references
 /// * `refs` - A mutable reference to a [`BTreeMap`] to store the references
 fn read_refs(
-    git_dir: &PathBuf,
+    git_dir: &Path,
     ref_dir: PathBuf,
     refs: &mut BTreeMap<PathBuf, [u8; 40]>,
 ) -> anyhow::Result<()> {
@@ -68,12 +73,39 @@ fn read_refs(
 
         // remove the git directory prefix from the path
         let ref_path = ref_path
-            .strip_prefix(git_dir.as_path())
+            .strip_prefix(git_dir)
             .context("strip prefix")?
             .to_path_buf();
         refs.insert(ref_path, hash);
     }
     Ok(())
+}
+
+/// Get the hash of the HEAD reference.
+///
+/// # Arguments
+///
+/// * `git_dir` - The path to the git directory
+/// * `refs` - A reference to a [`BTreeMap`] containing the references
+///
+/// # Returns
+///
+/// SHA1 of the HEAD reference
+fn get_head_hash(git_dir: &Path, refs: &BTreeMap<PathBuf, [u8; 40]>) -> anyhow::Result<[u8; 40]> {
+    // read the HEAD
+    let head_path = git_dir.join("HEAD");
+    let mut head = File::open(head_path)?;
+    let mut head_path = Vec::new();
+
+    head.seek(SeekFrom::Start(5))?; // skip "ref: "
+    head.read_to_end(&mut head_path)?;
+
+    // convert the path to a string and remove the trailing newline
+    let head_path = std::str::from_utf8(&head_path)?;
+    let head_path = PathBuf::from(head_path.trim_end());
+    let head = refs.get(&head_path).expect("HEAD reference should exist");
+
+    Ok(*head)
 }
 
 #[derive(Args, Debug)]
