@@ -1,5 +1,5 @@
 use std::collections::BTreeMap;
-use std::fs::File;
+use std::fs::{read_dir, File};
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 
@@ -15,97 +15,144 @@ impl CommandArgs for ShowRefArgs {
         W: Write,
     {
         let git_dir = git_dir()?;
-        let ref_dir = git_dir.join("refs");
-
-        // use a BTreeMap to sort the entries by path
-        // the entries are stored as a key-value pair of the path and the hash
+        // Map of ref paths to their hashes, a BTreeMap is used
+        // to ensure the output is sorted by the ref paths
         let mut refs = BTreeMap::<PathBuf, [u8; 40]>::new();
-        read_refs(&git_dir, ref_dir, &mut refs)?;
 
+        // Clamp the abbrev and hash values to be between 4 and 40
+        let abbrev = self.abbrev.clamp(4, 40);
+        let hash_limit = self.hash.map(|n| n.clamp(4, 40));
+
+        // Read the refs based on the flags
+        if self.heads {
+            read_refs(&git_dir, "refs/heads", &mut refs)?;
+        }
+        if self.tags {
+            read_refs(&git_dir, "refs/tags", &mut refs)?;
+        }
+        if !self.heads && !self.tags {
+            read_refs(&git_dir, "refs/heads", &mut refs)?;
+            read_refs(&git_dir, "refs/tags", &mut refs)?;
+            read_refs(&git_dir, "refs/remotes", &mut refs)?;
+            add_ref_if_exists(&git_dir, "refs/stash", &mut refs)?;
+        }
         if self.head {
-            let hash = get_head_hash(&git_dir, &refs)?;
-            refs.insert(PathBuf::from("HEAD"), hash);
+            read_head(&git_dir, &mut refs)?;
         }
 
         let refs = refs
             .into_iter()
             .map(|(path, hash)| {
-                let mut entry = hash.to_vec();
-                let path = path.to_string_lossy();
-
-                // format the entries as "<hash> <path>"
+                // If hash_limit is set, only show the first n characters of the hash
+                // and nothing else
+                if let Some(hash_limit) = hash_limit {
+                    return hash[0..hash_limit].to_vec();
+                }
+                // If abbrev is set, show the first n characters of the hash
+                // followed by a space and the path (from refs)
+                let mut entry = hash[0..abbrev].to_vec();
                 entry.push(b' ');
-                entry.extend_from_slice(path.as_bytes());
+                entry.extend_from_slice(path.to_string_lossy().as_bytes());
                 entry
             })
-            .collect::<Vec<_>>()
+            .collect::<Vec<Vec<u8>>>()
             .join(&b'\n');
 
         writer.write_all(refs.as_slice()).context("write to stdout")
     }
 }
 
-/// Recursively read all reference files in the given directory.
+/// Recursively read all refs in a directory
+/// and add them to the refs map.
 ///
 /// # Arguments
 ///
-/// * `git_dir` - The path to the git directory
-/// * `ref_dir` - The path to the directory containing the references
-/// * `refs` - A mutable reference to a [`BTreeMap`] to store the references
+/// * `git_dir` - The path to the .git directory
+/// * `subdir` - The subdirectory to read refs from, relative to `git_dir`
+/// * `refs` - The map to add the refs to
 fn read_refs(
     git_dir: &Path,
-    ref_dir: PathBuf,
+    subdir: &str,
     refs: &mut BTreeMap<PathBuf, [u8; 40]>,
 ) -> anyhow::Result<()> {
-    let entries = std::fs::read_dir(ref_dir)?;
-    for entry in entries {
+    for entry in read_dir(git_dir.join(subdir))? {
         let ref_path = entry?.path();
-        // recurse into subdirectories
         if ref_path.is_dir() {
-            read_refs(git_dir, ref_path, refs)?;
-            continue;
+            read_refs(git_dir, &ref_path.to_string_lossy(), refs)?;
+        } else {
+            add_ref(git_dir, &ref_path, refs)?;
         }
-
-        let mut file = File::open(&ref_path)?;
-        let mut hash = [0; 40];
-        // read 40-byte hex hash
-        file.read_exact(&mut hash)?;
-
-        // remove the git directory prefix from the path
-        let ref_path = ref_path
-            .strip_prefix(git_dir)
-            .context("strip prefix")?
-            .to_path_buf();
-        refs.insert(ref_path, hash);
     }
     Ok(())
 }
 
-/// Get the hash of the HEAD reference.
+/// Add a ref to the refs map if the file exists.
 ///
 /// # Arguments
 ///
-/// * `git_dir` - The path to the git directory
-/// * `refs` - A reference to a [`BTreeMap`] containing the references
+/// * `git_dir` - The path to the .git directory
+/// * `sub_path` - The path to the ref file, relative to `git_dir`
+/// * `refs` - The map to add the ref to
+fn add_ref_if_exists(
+    git_dir: &Path,
+    sub_path: &str,
+    refs: &mut BTreeMap<PathBuf, [u8; 40]>,
+) -> anyhow::Result<()> {
+    let ref_path = git_dir.join(sub_path);
+    if ref_path.exists() {
+        add_ref(git_dir, &ref_path, refs)?;
+    }
+    Ok(())
+}
+
+/// Add a ref to the refs map.
 ///
-/// # Returns
+/// # Arguments
 ///
-/// SHA1 of the HEAD reference
-fn get_head_hash(git_dir: &Path, refs: &BTreeMap<PathBuf, [u8; 40]>) -> anyhow::Result<[u8; 40]> {
-    // read the HEAD
+/// * `git_dir` - The path to the .git directory
+/// * `path` - The path to the ref file
+/// * `refs` - The map to add the ref to
+fn add_ref(
+    git_dir: &Path,
+    path: &Path,
+    refs: &mut BTreeMap<PathBuf, [u8; 40]>,
+) -> anyhow::Result<()> {
+    let mut file = File::open(path)?;
+    let mut hash = [0; 40];
+    file.read_exact(&mut hash)?;
+
+    let stripped_path = path.strip_prefix(git_dir)?;
+    refs.insert(stripped_path.to_path_buf(), hash);
+    Ok(())
+}
+
+/// Read the HEAD file and add it to the refs map.
+///
+/// # Arguments
+///
+/// * `git_dir` - The path to the .git directory
+/// * `refs` - The map to add the HEAD ref to
+fn read_head(git_dir: &Path, refs: &mut BTreeMap<PathBuf, [u8; 40]>) -> anyhow::Result<()> {
     let head_path = git_dir.join("HEAD");
     let mut head = File::open(head_path)?;
     let mut head_path = Vec::new();
 
-    head.seek(SeekFrom::Start(5))?; // skip "ref: "
+    head.seek(SeekFrom::Start(5))?; // Skip the "ref: " prefix
     head.read_to_end(&mut head_path)?;
+    head_path.pop(); // Remove the trailing newline
 
-    // convert the path to a string and remove the trailing newline
-    let head_path = std::str::from_utf8(&head_path)?;
-    let head_path = PathBuf::from(head_path.trim_end());
-    let head = refs.get(&head_path).expect("HEAD reference should exist");
+    let head_path = PathBuf::from(std::str::from_utf8(&head_path)?);
+    // If refs/heads was read, we don't need to re-read the HEAD file
+    if let Some(&hash) = refs.get(&head_path) {
+        refs.insert(PathBuf::from("HEAD"), hash);
+        return Ok(());
+    }
 
-    Ok(*head)
+    let mut head = File::open(head_path)?;
+    let mut hash = [0; 40];
+    head.read_exact(&mut hash)?;
+    refs.insert(PathBuf::from("HEAD"), hash);
+    Ok(())
 }
 
 #[derive(Args, Debug)]
@@ -113,31 +160,16 @@ pub(crate) struct ShowRefArgs {
     /// show the HEAD reference, even if it would be filtered out
     #[arg(long)]
     head: bool,
-    /// only show branches (can be combined with tags)
+    /// only show heads (can be combined with tags)
     #[arg(long)]
-    branches: bool,
-    /// only show tags (can be combined with branches)
+    heads: bool,
+    /// only show tags (can be combined with heads)
     #[arg(long)]
     tags: bool,
-    /// stricter reference checking, requires exact ref path
-    #[arg(long, requires = "pattern")]
-    verify: bool,
-    /// dereference tags into object IDs
-    #[arg(short, long)]
-    dereference: bool,
     /// only show SHA1 hash using <n> digits
     #[arg(short = 's', long, value_name = "n")]
     hash: Option<usize>,
     /// use <n> digits to display object names
-    #[arg(long, value_name = "n")]
-    abbrev: Option<usize>,
-    /// do not print results to stdout (useful with --verify)
-    #[arg(short, long)]
-    quiet: bool,
-    /// show refs from stdin that aren't in local repository
-    #[arg(long, value_name = "pattern", conflicts_with = "pattern")]
-    exclude_existing: Option<String>,
-    /// only show refs that match the given pattern
-    #[arg(name = "pattern", required = false)]
-    patterns: Vec<String>,
+    #[arg(long, value_name = "n", default_value = "40")]
+    abbrev: usize,
 }
