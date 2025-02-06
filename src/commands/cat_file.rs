@@ -14,16 +14,21 @@ impl CommandArgs for CatFileArgs {
     where
         W: Write,
     {
-        if self.flags.show_type {
-            return read_object_type(&self.object_hash, self.allow_unknown_type, writer);
+        match self.flags {
+            CatFileFlags {
+                show_type: true, ..
+            } => read_object_type(&self.object_hash, self.allow_unknown_type, writer),
+            CatFileFlags { size: true, .. } => {
+                read_object_size(&self.object_hash, self.allow_unknown_type, writer)
+            },
+            CatFileFlags {
+                exit_zero: true, ..
+            }
+            | CatFileFlags {
+                pretty_print: true, ..
+            } => read_object_pretty(&self.object_hash, self.flags.exit_zero, writer),
+            _ => unreachable!("either -t, -s, -e, or -p must be specified"),
         }
-        if self.flags.size {
-            return read_object_size(&self.object_hash, self.allow_unknown_type, writer);
-        }
-        if self.flags.exit_zero || self.flags.pretty_print {
-            return read_object_pretty(&self.object_hash, self.flags.exit_zero, writer);
-        }
-        unreachable!("either -t, -s, -e, or -p must be specified");
     }
 }
 
@@ -33,10 +38,8 @@ where
 {
     let object_path = get_object_path(hash, true)?;
     let file = File::open(object_path)?;
-
     // Create a zlib decoder to read the object header and content
-    let zlib = ZlibDecoder::new(file);
-    let mut zlib = BufReader::new(zlib);
+    let mut zlib = BufReader::new(ZlibDecoder::new(file));
 
     // Read the object header
     let mut header = Vec::new();
@@ -128,10 +131,8 @@ where
 {
     let object_path = get_object_path(hash, true)?;
     let file = File::open(object_path)?;
-
     // Create a zlib decoder to read the object header
-    let zlib = ZlibDecoder::new(file);
-    let mut zlib = BufReader::new(zlib);
+    let mut zlib = BufReader::new(ZlibDecoder::new(file));
 
     // Read the object header
     let mut buf = Vec::new();
@@ -154,10 +155,8 @@ where
 {
     let object_path = get_object_path(hash, true)?;
     let file = File::open(object_path)?;
-
     // Create a zlib decoder to read the object header
-    let zlib = ZlibDecoder::new(file);
-    let mut zlib = BufReader::new(zlib);
+    let mut zlib = BufReader::new(ZlibDecoder::new(file));
 
     // Read the object header
     let mut buf = Vec::new();

@@ -64,7 +64,7 @@ impl CommandArgs for HashObjectArgs {
 fn write_blob(blob: &[u8], hash: &str) -> anyhow::Result<()> {
     // Split the hash into directory and file name.
     let (dir_name, file_name) = hash.split_at(2);
-    
+
     // Create the object directory if it doesn't exist.
     let object_dir = git_object_dir(false)?.join(dir_name);
     std::fs::create_dir_all(&object_dir).context("create subdir in .git/objects")?;
