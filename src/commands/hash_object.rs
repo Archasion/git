@@ -25,15 +25,9 @@ impl CommandArgs for HashObjectArgs {
     where
         W: Write,
     {
-        let HashObjectArgs {
-            write,
-            path,
-            object_type,
-        } = self;
-
         // Create blob from header and file content.
-        let content = std::fs::read(&path).context(format!("read {}", path.display()))?;
-        let header = format_header(object_type, content.len());
+        let content = std::fs::read(&self.path).context(format!("read {}", self.path.display()))?;
+        let header = format_header(self.object_type, content.len());
         let mut blob = header.into_bytes();
         blob.extend(content);
 
@@ -42,11 +36,12 @@ impl CommandArgs for HashObjectArgs {
         let hash = {
             let mut hasher = Sha1::new();
             hasher.update(&blob);
+            // Format the hash as a hex string.
             format!("{:x}", hasher.finalize())
         };
 
         // Write blob to the object database if requested.
-        if write {
+        if self.write {
             write_blob(&blob, &hash)?;
         }
 
@@ -69,7 +64,7 @@ impl CommandArgs for HashObjectArgs {
 fn write_blob(blob: &[u8], hash: &str) -> anyhow::Result<()> {
     // Split the hash into directory and file name.
     let (dir_name, file_name) = hash.split_at(2);
-
+    
     // Create the object directory if it doesn't exist.
     let object_dir = git_object_dir(false)?.join(dir_name);
     std::fs::create_dir_all(&object_dir).context("create subdir in .git/objects")?;
