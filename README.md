@@ -19,6 +19,12 @@ This is a simple attempt at re-creating some of the functionality of the `git` c
     - `-p` flag to show the content of the object (pretty-print)
     - `--allow-unknown-type` flag to allow unknown object types (to be used with `-t` or `-s`).
     - `<object>` argument to specify the object to show.
+- `show-ref` - List references in a local repository.
+    - `--head` flag to include the HEAD reference.
+    - `--tags` flag to show only tags.
+    - `--heads` flag to show only heads.
+    - `--hash=<n>` flag to only show the reference hashes (`n` is the number of characters to show, 4-40).
+    - `--abbrev=<n>` flag to abbreviate the hashes to `n` characters (4-40)
 
 ## Testing
 
