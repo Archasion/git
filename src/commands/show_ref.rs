@@ -206,8 +206,8 @@ mod tests {
     /// The `stash` and `HEAD` refs are always created.
     fn create_temp_refs<const N: usize>(refs: [Ref; N]) -> TempPwd {
         let _env = TempEnv::new(env::GIT_DIR, None);
-        let temp_pwd = TempPwd::new();
-        let git_dir = temp_pwd.path().join(".git");
+        let pwd = TempPwd::new();
+        let git_dir = pwd.path().join(".git");
         let refs_dir = git_dir.join("refs");
 
         std::fs::create_dir_all(&refs_dir).unwrap();
@@ -233,7 +233,7 @@ mod tests {
         let stash_file = refs_dir.join("stash");
         std::fs::write(&stash_file, STASH_HASH).unwrap();
 
-        temp_pwd
+        pwd
     }
 
     #[test]

@@ -116,8 +116,8 @@ mod tests {
     fn hashes_blob_and_displays_hash() {
         let _env = TempEnv::from([(env::GIT_DIR, None), (env::GIT_OBJECT_DIRECTORY, None)]);
 
-        let temp_pwd = TempPwd::new();
-        let file_path = temp_pwd.path().join(FILE_NAME);
+        let pwd = TempPwd::new();
+        let file_path = pwd.path().join(FILE_NAME);
         fs::write(&file_path, OBJECT_CONTENT).unwrap();
 
         let args = HashObjectArgs {
@@ -137,12 +137,12 @@ mod tests {
     fn writes_blob_to_object_database() {
         let _env = TempEnv::from([(env::GIT_DIR, None), (env::GIT_OBJECT_DIRECTORY, None)]);
 
-        let temp_pwd = TempPwd::new();
-        let file_path = temp_pwd.path().join(FILE_NAME);
+        let pwd = TempPwd::new();
+        let file_path = pwd.path().join(FILE_NAME);
 
         fs::write(&file_path, OBJECT_CONTENT).unwrap();
         // Create the .git directory.
-        fs::create_dir_all(temp_pwd.path().join(".git/objects")).unwrap();
+        fs::create_dir_all(pwd.path().join(".git/objects")).unwrap();
 
         let args = HashObjectArgs {
             write: true,
@@ -155,7 +155,7 @@ mod tests {
 
         // Check that the object file was written to the object database.
         let (dir_name, file_name) = OBJECT_HASH.split_at(2);
-        let object_path = temp_pwd
+        let object_path = pwd
             .path()
             .join(".git/objects")
             .join(dir_name)
@@ -166,7 +166,7 @@ mod tests {
     #[test]
     fn fails_on_nonexistent_file() {
         let _env = TempEnv::from([(env::GIT_DIR, None), (env::GIT_OBJECT_DIRECTORY, None)]);
-        let _temp_pwd = TempPwd::new();
+        let _pwd = TempPwd::new();
 
         let args = HashObjectArgs {
             write: false,
@@ -182,17 +182,17 @@ mod tests {
     fn write_blob_creates_object_database() {
         let _env = TempEnv::from([(env::GIT_DIR, None), (env::GIT_OBJECT_DIRECTORY, None)]);
 
-        let temp_pwd = TempPwd::new();
+        let pwd = TempPwd::new();
         let blob = format!("blob {}\0{}", OBJECT_CONTENT.len(), OBJECT_CONTENT);
         // Create the .git directory.
-        fs::create_dir(temp_pwd.path().join(".git")).unwrap();
+        fs::create_dir(pwd.path().join(".git")).unwrap();
 
         let result = write_blob(blob.as_bytes(), OBJECT_HASH);
         assert!(result.is_ok());
 
         // Check that the object directory and file were created.
         let (dir_name, file_name) = OBJECT_HASH.split_at(2);
-        let object_dir = temp_pwd
+        let object_dir = pwd
             .path()
             .join(".git/objects")
             .join(dir_name)

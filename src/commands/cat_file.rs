@@ -294,8 +294,8 @@ mod tests {
     fn displays_non_tree() {
         let _env = TempEnv::from([(env::GIT_DIR, None), (env::GIT_OBJECT_DIRECTORY, None)]);
 
-        let temp_pwd = TempPwd::new();
-        let object_path = temp_pwd.path().join(OBJECT_PATH);
+        let pwd = TempPwd::new();
+        let object_path = pwd.path().join(OBJECT_PATH);
 
         // Create the object path and write the hashed content
         fs::create_dir_all(object_path.parent().unwrap()).unwrap();
@@ -323,15 +323,15 @@ mod tests {
     fn displays_tree() {
         let _env = TempEnv::from([(env::GIT_DIR, None), (env::GIT_OBJECT_DIRECTORY, None)]);
 
-        let temp_pwd = TempPwd::new();
-        let tree_path = temp_pwd.path().join(OBJECT_PATH);
+        let pwd = TempPwd::new();
+        let tree_path = pwd.path().join(OBJECT_PATH);
         let blob_hash_hex = "01c6a63b7fc32f6f49988a9a12b8d7d199febeab";
 
         // Create the object path and write the hashed content
         fs::create_dir_all(tree_path.parent().unwrap()).unwrap();
         fs::write(&tree_path, compress_tree(blob_hash_hex, true, true)).unwrap();
 
-        let blob_path = temp_pwd
+        let blob_path = pwd
             .path()
             .join(".git/objects")
             .join(&blob_hash_hex[..2])
@@ -363,8 +363,8 @@ mod tests {
     fn exits_successfully() {
         let _env = TempEnv::from([(env::GIT_DIR, None), (env::GIT_OBJECT_DIRECTORY, None)]);
 
-        let temp_pwd = TempPwd::new();
-        let object_path = temp_pwd.path().join(OBJECT_PATH);
+        let pwd = TempPwd::new();
+        let object_path = pwd.path().join(OBJECT_PATH);
 
         // Create the object path and write the hashed content
         fs::create_dir_all(object_path.parent().unwrap()).unwrap();
@@ -392,8 +392,8 @@ mod tests {
     fn displays_object_type() {
         let _env = TempEnv::from([(env::GIT_DIR, None), (env::GIT_OBJECT_DIRECTORY, None)]);
 
-        let temp_pwd = TempPwd::new();
-        let object_path = temp_pwd.path().join(OBJECT_PATH);
+        let pwd = TempPwd::new();
+        let object_path = pwd.path().join(OBJECT_PATH);
 
         // Create the object path and write the hashed content
         fs::create_dir_all(object_path.parent().unwrap()).unwrap();
@@ -421,8 +421,8 @@ mod tests {
     fn displays_object_size() {
         let _env = TempEnv::from([(env::GIT_DIR, None), (env::GIT_OBJECT_DIRECTORY, None)]);
 
-        let temp_pwd = TempPwd::new();
-        let object_path = temp_pwd.path().join(OBJECT_PATH);
+        let pwd = TempPwd::new();
+        let object_path = pwd.path().join(OBJECT_PATH);
 
         // Create the object path and write the hashed content
         fs::create_dir_all(object_path.parent().unwrap()).unwrap();
@@ -450,8 +450,8 @@ mod tests {
     fn displays_object_type_with_unknown_type() {
         let _env = TempEnv::from([(env::GIT_DIR, None), (env::GIT_OBJECT_DIRECTORY, None)]);
 
-        let temp_pwd = TempPwd::new();
-        let object_path = temp_pwd.path().join(OBJECT_PATH);
+        let pwd = TempPwd::new();
+        let object_path = pwd.path().join(OBJECT_PATH);
 
         // Create the object path and write the hashed content
         fs::create_dir_all(object_path.parent().unwrap()).unwrap();
@@ -479,8 +479,8 @@ mod tests {
     fn displays_object_size_with_unknown_type() {
         let _env = TempEnv::from([(env::GIT_DIR, None), (env::GIT_OBJECT_DIRECTORY, None)]);
 
-        let temp_pwd = TempPwd::new();
-        let object_path = temp_pwd.path().join(OBJECT_PATH);
+        let pwd = TempPwd::new();
+        let object_path = pwd.path().join(OBJECT_PATH);
 
         // Create the object path and write the hashed content
         fs::create_dir_all(object_path.parent().unwrap()).unwrap();
@@ -508,8 +508,8 @@ mod tests {
     fn fails_to_display_object_type_with_unknown_type() {
         let _env = TempEnv::from([(env::GIT_DIR, None), (env::GIT_OBJECT_DIRECTORY, None)]);
 
-        let temp_pwd = TempPwd::new();
-        let object_path = temp_pwd.path().join(OBJECT_PATH);
+        let pwd = TempPwd::new();
+        let object_path = pwd.path().join(OBJECT_PATH);
 
         // Create the object path and write the hashed content
         fs::create_dir_all(object_path.parent().unwrap()).unwrap();
@@ -534,8 +534,8 @@ mod tests {
     fn fails_to_display_object_size_with_unknown_type() {
         let _env = TempEnv::from([(env::GIT_DIR, None), (env::GIT_OBJECT_DIRECTORY, None)]);
 
-        let temp_pwd = TempPwd::new();
-        let object_path = temp_pwd.path().join(OBJECT_PATH);
+        let pwd = TempPwd::new();
+        let object_path = pwd.path().join(OBJECT_PATH);
 
         // Create the object path and write the hashed content
         fs::create_dir_all(object_path.parent().unwrap()).unwrap();
@@ -560,8 +560,8 @@ mod tests {
     fn fails_to_display_non_tree_with_invalid_size() {
         let _env = TempEnv::from([(env::GIT_DIR, None), (env::GIT_OBJECT_DIRECTORY, None)]);
 
-        let temp_pwd = TempPwd::new();
-        let object_path = temp_pwd.path().join(OBJECT_PATH);
+        let pwd = TempPwd::new();
+        let object_path = pwd.path().join(OBJECT_PATH);
 
         // Create the object path and write the hashed content
         fs::create_dir_all(object_path.parent().unwrap()).unwrap();
@@ -586,15 +586,15 @@ mod tests {
     fn fails_to_display_tree_with_invalid_size() {
         let _env = TempEnv::from([(env::GIT_DIR, None), (env::GIT_OBJECT_DIRECTORY, None)]);
 
-        let temp_pwd = TempPwd::new();
-        let tree_path = temp_pwd.path().join(OBJECT_PATH);
+        let pwd = TempPwd::new();
+        let tree_path = pwd.path().join(OBJECT_PATH);
         let blob_hash_hex = "01c6a63b7fc32f6f49988a9a12b8d7d199febeab";
 
         // Create the object path and write the hashed content
         fs::create_dir_all(tree_path.parent().unwrap()).unwrap();
         fs::write(&tree_path, compress_tree(blob_hash_hex, true, false)).unwrap();
 
-        let blob_path = temp_pwd
+        let blob_path = pwd
             .path()
             .join(".git/objects")
             .join(&blob_hash_hex[..2])
@@ -623,8 +623,8 @@ mod tests {
     fn fails_to_display_non_tree_with_unknown_type() {
         let _env = TempEnv::from([(env::GIT_DIR, None), (env::GIT_OBJECT_DIRECTORY, None)]);
 
-        let temp_pwd = TempPwd::new();
-        let object_path = temp_pwd.path().join(OBJECT_PATH);
+        let pwd = TempPwd::new();
+        let object_path = pwd.path().join(OBJECT_PATH);
 
         // Create the object path and write the hashed content
         fs::create_dir_all(object_path.parent().unwrap()).unwrap();
@@ -649,15 +649,15 @@ mod tests {
     fn fails_to_display_tree_with_unknown_type() {
         let _env = TempEnv::from([(env::GIT_DIR, None), (env::GIT_OBJECT_DIRECTORY, None)]);
 
-        let temp_pwd = TempPwd::new();
-        let tree_path = temp_pwd.path().join(OBJECT_PATH);
+        let pwd = TempPwd::new();
+        let tree_path = pwd.path().join(OBJECT_PATH);
         let blob_hash_hex = "01c6a63b7fc32f6f49988a9a12b8d7d199febeab";
 
         // Create the object path and write the hashed content
         fs::create_dir_all(tree_path.parent().unwrap()).unwrap();
         fs::write(&tree_path, compress_tree(blob_hash_hex, false, true)).unwrap();
 
-        let blob_path = temp_pwd
+        let blob_path = pwd
             .path()
             .join(".git/objects")
             .join(&blob_hash_hex[..2])
@@ -686,8 +686,8 @@ mod tests {
     fn displays_object_size_with_invalid_size() {
         let _env = TempEnv::from([(env::GIT_DIR, None), (env::GIT_OBJECT_DIRECTORY, None)]);
 
-        let temp_pwd = TempPwd::new();
-        let object_path = temp_pwd.path().join(OBJECT_PATH);
+        let pwd = TempPwd::new();
+        let object_path = pwd.path().join(OBJECT_PATH);
 
         // Create the object path and write the hashed content
         fs::create_dir_all(object_path.parent().unwrap()).unwrap();
@@ -714,7 +714,7 @@ mod tests {
     #[test]
     fn fails_to_display_object_with_invalid_hash() {
         let _env = TempEnv::from([(env::GIT_DIR, None), (env::GIT_OBJECT_DIRECTORY, None)]);
-        let _temp_pwd = TempPwd::new();
+        let _pwd = TempPwd::new();
 
         let args = CatFileArgs {
             flags: CatFileFlags {
@@ -734,7 +734,7 @@ mod tests {
     #[test]
     fn fails_to_display_header_with_invalid_hash() {
         let _env = TempEnv::from([(env::GIT_DIR, None), (env::GIT_OBJECT_DIRECTORY, None)]);
-        let _temp_pwd = TempPwd::new();
+        let _pwd = TempPwd::new();
 
         let args = CatFileArgs {
             flags: CatFileFlags {

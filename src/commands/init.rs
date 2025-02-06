@@ -119,10 +119,10 @@ mod tests {
     fn inits_repo() {
         let _env = TempEnv::from([(env::GIT_DIR, None), (env::GIT_OBJECT_DIRECTORY, None)]);
 
-        let temp_pwd = TempPwd::new();
-        let git_dir = temp_pwd.path().join(".git");
+        let pwd = TempPwd::new();
+        let git_dir = pwd.path().join(".git");
         let args = InitArgs {
-            directory: Some(temp_pwd.path().to_path_buf()),
+            directory: Some(pwd.path().to_path_buf()),
             bare: false,
             quiet: true,
             initial_branch: INITIAL_BRANCH.to_string(),
@@ -143,9 +143,9 @@ mod tests {
     fn inits_bare_repo() {
         let _env = TempEnv::from([(env::GIT_DIR, None), (env::GIT_OBJECT_DIRECTORY, None)]);
 
-        let temp_pwd = TempPwd::new();
+        let pwd = TempPwd::new();
         let args = InitArgs {
-            directory: Some(temp_pwd.path().to_path_buf()),
+            directory: Some(pwd.path().to_path_buf()),
             bare: true,
             quiet: true,
             initial_branch: INITIAL_BRANCH.to_string(),
@@ -153,11 +153,11 @@ mod tests {
 
         let result = args.run(&mut Vec::new());
         assert!(result.is_ok());
-        assert!(temp_pwd.path().join("objects").exists());
-        assert!(temp_pwd.path().join("refs").exists());
-        assert!(temp_pwd.path().join("HEAD").exists());
+        assert!(pwd.path().join("objects").exists());
+        assert!(pwd.path().join("refs").exists());
+        assert!(pwd.path().join("HEAD").exists());
 
-        let head_content = fs::read_to_string(temp_pwd.path().join("HEAD")).unwrap();
+        let head_content = fs::read_to_string(pwd.path().join("HEAD")).unwrap();
         assert_eq!(head_content, "ref: refs/heads/main\n");
     }
 
@@ -165,11 +165,11 @@ mod tests {
     fn inits_repo_with_branch() {
         let _env = TempEnv::from([(env::GIT_DIR, None), (env::GIT_OBJECT_DIRECTORY, None)]);
 
-        let temp_pwd = TempPwd::new();
-        let git_dir = temp_pwd.path().join(".git");
+        let pwd = TempPwd::new();
+        let git_dir = pwd.path().join(".git");
         let custom_branch = "develop".to_string();
         let args = InitArgs {
-            directory: Some(temp_pwd.path().to_path_buf()),
+            directory: Some(pwd.path().to_path_buf()),
             bare: false,
             quiet: true,
             initial_branch: custom_branch.clone(),
@@ -191,10 +191,10 @@ mod tests {
             (env::GIT_OBJECT_DIRECTORY, None),
         ]);
 
-        let temp_pwd = TempPwd::new();
-        let git_dir = temp_pwd.path().join(CUSTOM_GIT_DIR);
+        let pwd = TempPwd::new();
+        let git_dir = pwd.path().join(CUSTOM_GIT_DIR);
         let args = InitArgs {
-            directory: Some(temp_pwd.path().to_path_buf()),
+            directory: Some(pwd.path().to_path_buf()),
             bare: false,
             quiet: true,
             initial_branch: INITIAL_BRANCH.to_string(),
@@ -218,10 +218,10 @@ mod tests {
             (env::GIT_OBJECT_DIRECTORY, Some(CUSTOM_OBJECT_DIR)),
         ]);
 
-        let temp_pwd = TempPwd::new();
-        let git_dir = temp_pwd.path().join(".git");
+        let pwd = TempPwd::new();
+        let git_dir = pwd.path().join(".git");
         let args = InitArgs {
-            directory: Some(temp_pwd.path().to_path_buf()),
+            directory: Some(pwd.path().to_path_buf()),
             bare: false,
             quiet: true,
             initial_branch: INITIAL_BRANCH.to_string(),
