@@ -43,7 +43,7 @@ impl CommandArgs for InitArgs {
 }
 
 /// Returns the content of the HEAD file.
-fn get_head_ref_content(initial_branch: &str) -> String {
+pub(crate) fn get_head_ref_content(initial_branch: &str) -> String {
     format!("ref: refs/heads/{}\n", initial_branch)
 }
 

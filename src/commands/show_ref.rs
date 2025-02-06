@@ -183,6 +183,7 @@ pub(crate) struct ShowRefArgs {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::commands::init::get_head_ref_content;
     use crate::utils::env;
     use crate::utils::test::{TempEnv, TempPwd};
 
@@ -227,7 +228,7 @@ mod tests {
 
         // Create a HEAD file that points to the main branch
         let head_file = git_dir.join("HEAD");
-        std::fs::write(&head_file, format!("ref: refs/heads/{}\n", HEAD_NAME)).unwrap();
+        std::fs::write(&head_file, get_head_ref_content(HEAD_NAME)).unwrap();
 
         // Create a stash file
         let stash_file = refs_dir.join("stash");
@@ -730,7 +731,7 @@ mod tests {
         let pwd = create_temp_refs([]);
         let head_file = pwd.path().join(".git/HEAD");
         // Overwrite the HEAD file with an invalid path
-        std::fs::write(&head_file, "ref: refs/heads/invalid\n").unwrap();
+        std::fs::write(&head_file, get_head_ref_content("invalid")).unwrap();
 
         let args = ShowRefArgs {
             head: false,
@@ -750,7 +751,7 @@ mod tests {
         let pwd = create_temp_refs([]);
         let head_file = pwd.path().join(".git/HEAD");
         // Overwrite the HEAD file with an invalid path
-        std::fs::write(&head_file, "ref: refs/heads/invalid\n").unwrap();
+        std::fs::write(&head_file, get_head_ref_content("invalid")).unwrap();
 
         let args = ShowRefArgs {
             head: true,
