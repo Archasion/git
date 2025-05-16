@@ -206,7 +206,7 @@ mod tests {
     ///
     /// The `stash` and `HEAD` refs are always created.
     fn create_temp_refs<const N: usize>(refs: [Ref; N]) -> TempPwd {
-        let _env = TempEnv::new(env::GIT_DIR, None);
+        let _env = TempEnv::unset(env::GIT_DIR);
         let pwd = TempPwd::new();
         let git_dir = pwd.path().join(".git");
         let refs_dir = git_dir.join("refs");

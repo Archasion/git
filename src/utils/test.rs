@@ -8,45 +8,51 @@ use std::path::{Path, PathBuf};
 /// A temporary environment for testing.
 /// Changes the environment variable and restores it on drop.
 /// Tests must be run serially to avoid conflicts (`cargo test -- --test-threads=1`)
-///
-/// # Example
-///
-/// ```
-/// # use crate::utils::test::TempEnv;
-/// let temp_env = TempEnv::new("KEY", Some("VALUE"));
-/// assert_eq!(std::env::var("KEY"), Ok("VALUE".to_string()));
-///
-/// // The environment variable is restored when the `TempEnv` instance is dropped
-/// drop(temp_env);
-///
-/// // Setting the value to `None` unsets the environment variable
-/// let temp_env = TempEnv::new("KEY", None);
-/// assert!(std::env::var("KEY").is_err());
-///
-/// drop(temp_env);
 pub(crate) struct TempEnv(HashMap<String, Option<String>>);
 
 impl TempEnv {
-    /// Create a new temporary environment variable.
-    ///
-    /// * If `value` is `Some`, the environment variable is set to that value.
-    /// * If `value` is `None`, the environment variable is unset.
+    /// Set a new temporary environment variable.
+    /// 
+    /// # Example
+    /// 
+    /// ```
+    /// # use crate::utils::test::TempEnv;
+    /// let temp_env = TempEnv::set("KEY", "VALUE");
+    /// assert_eq!(std::env::var("KEY"), Ok("VALUE".to_string()));
+    /// 
+    /// // The environment variable is restored when the `TempEnv` instance is dropped
+    /// drop(temp_env);
+    /// assert!(std::env::var("KEY").is_err());
     #[allow(dead_code)]
-    pub(crate) fn new<S>(key: S, value: Option<&str>) -> Self
+    pub(crate) fn set<S>(key: S, value: &str) -> Self
     where
         S: Into<String>,
     {
         let key = key.into();
         // Get the current value of the environment variable
         let old_value = std::env::var(&key).ok();
-
-        // Set or unset the environment variable
-        if let Some(value) = value {
-            std::env::set_var(&key, value);
-        } else {
-            std::env::remove_var(&key);
-        }
-
+        std::env::set_var(&key, value);
+        // Store the previous state of the environment variable
+        TempEnv(HashMap::from([(key, old_value)]))
+    }
+    
+    /// Unset a temporary environment variable.
+    /// 
+    /// # Example
+    /// 
+    /// ```
+    /// # use crate::utils::test::TempEnv;
+    /// let temp_env = TempEnv::unset("KEY");
+    /// assert!(std::env::var("KEY").is_err());
+    #[allow(dead_code)]
+    pub(crate) fn unset<S>(key: S) -> Self
+    where
+        S: Into<String>,
+    {
+        let key = key.into();
+        // Get the current value of the environment variable
+        let old_value = std::env::var(&key).ok();
+        std::env::remove_var(&key);
         // Store the previous state of the environment variable
         TempEnv(HashMap::from([(key, old_value)]))
     }
@@ -63,18 +69,11 @@ where
     ///
     /// ```
     /// # use crate::utils::test::TempEnv;
-    /// let temp_env = TempEnv::from([("KEY1", Some("VALUE1")), ("KEY2", Some("VALUE2"))]);
+    /// let temp_env = TempEnv::from([("KEY1", Some("VALUE1")), ("KEY2", None)]);
     /// assert_eq!(std::env::var("KEY1"), Ok("VALUE1".to_string()));
-    /// assert_eq!(std::env::var("KEY2"), Ok("VALUE2".to_string()));
-    ///
-    /// // The environment variables are restored when the `TempEnv` instance is dropped
-    /// drop(temp_env);
-    ///
-    /// // Setting the value to `None` unsets the environment variable
-    /// let temp_env = TempEnv::from([("KEY1", None), ("KEY2", None)]);
-    /// assert!(std::env::var("KEY1").is_err());
     /// assert!(std::env::var("KEY2").is_err());
     ///
+    /// // The environment variables are restored when the `TempEnv` instance is dropped
     /// drop(temp_env);
     fn from(slice: [(S, Option<&str>); N]) -> Self {
         let mut map = HashMap::with_capacity(N);
