@@ -44,7 +44,7 @@ impl CommandArgs for InitArgs {
 
 /// Returns the content of the HEAD file.
 pub(crate) fn get_head_ref_content(initial_branch: &str) -> String {
-    format!("ref: refs/heads/{}\n", initial_branch)
+    format!("ref: refs/heads/{initial_branch}\n")
 }
 
 /// Returns the path to initialize the git repository.
@@ -181,7 +181,7 @@ mod tests {
         assert!(git_dir.join("HEAD").exists());
 
         let head_content = fs::read_to_string(git_dir.join("HEAD")).unwrap();
-        assert_eq!(head_content, format!("ref: refs/heads/{}\n", custom_branch));
+        assert_eq!(head_content, format!("ref: refs/heads/{custom_branch}\n"));
     }
 
     #[test]

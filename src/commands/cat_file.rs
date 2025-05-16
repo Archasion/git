@@ -279,7 +279,7 @@ mod tests {
     /// The content of the tree object
     fn tree_content(object_hash: &str, pretty: bool) -> Vec<u8> {
         if pretty {
-            format!("100644 blob {}\tfile.txt", object_hash).into_bytes()
+            format!("100644 blob {object_hash}\tfile.txt").into_bytes()
         } else {
             let object_hash_binary =
                 hex::decode(object_hash.as_bytes()).expect("failed to convert hex to binary");

@@ -11,7 +11,7 @@ where
     O: fmt::Display,
     S: fmt::Display,
 {
-    format!("{} {}\0", object_type, size)
+    format!("{object_type} {size}\0")
 }
 
 /// Parse the header of a `.git/objects` file into the [`ObjectHeader`] struct.
