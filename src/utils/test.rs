@@ -12,14 +12,14 @@ pub(crate) struct TempEnv(HashMap<String, Option<String>>);
 
 impl TempEnv {
     /// Set a new temporary environment variable.
-    /// 
+    ///
     /// # Example
-    /// 
+    ///
     /// ```
     /// # use crate::utils::test::TempEnv;
     /// let temp_env = TempEnv::set("KEY", "VALUE");
     /// assert_eq!(std::env::var("KEY"), Ok("VALUE".to_string()));
-    /// 
+    ///
     /// // The environment variable is restored when the `TempEnv` instance is dropped
     /// drop(temp_env);
     /// assert!(std::env::var("KEY").is_err());
@@ -35,11 +35,11 @@ impl TempEnv {
         // Store the previous state of the environment variable
         TempEnv(HashMap::from([(key, old_value)]))
     }
-    
+
     /// Unset a temporary environment variable.
-    /// 
+    ///
     /// # Example
-    /// 
+    ///
     /// ```
     /// # use crate::utils::test::TempEnv;
     /// let temp_env = TempEnv::unset("KEY");
